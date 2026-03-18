@@ -52,6 +52,7 @@ npx contextos run
 # or force a specific mode
 npx contextos run --llm pro
 ```
+Supported `--llm` values: `free`, `pro`, `local`, `openai`, `gemini`, `anthropic`, `pollinations`.
 
 ### 3. Clear Context (`clear`)
 Surgical command to wipe all generated context files in `.ai/context/`.
@@ -63,6 +64,10 @@ npx contextos clear
 Maintain a persistent log of decisions and learnings.
 - **Add**: `npx contextos memory add "We chose PostgreSQL for scalability."`
 - **List**: `npx contextos memory list`
+- **Clear**: `npx contextos memory clear`
+- **Quick Inject**: `npx contextos /memory "We should ship the MVP first."`
+
+When using folder-based initialization, files and folders that match `.gitignore` are skipped automatically.
 
 ## 🧠 LLM Selection Logic
 

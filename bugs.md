@@ -1,6 +1,6 @@
 ### Bugs
 - [x] When i inputed detail about project, the context file couldn't create well (Fixed with Retry Logic in PollinationsProvider)
-- [ ] rules.md couldn't created.
+- [x] rules.md couldn't created. (Fixed by retry hardening in PollinationsProvider + fallback template write in ContextEngine when provider fails)
         --- Console Output ---
         ---
         npx contextos init

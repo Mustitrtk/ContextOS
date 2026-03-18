@@ -5,13 +5,13 @@
 ### Core Infrastructure
 - [x] Implement **LLM Abstraction Layer** to support multiple providers (OpenAI, Local, etc.)
 - [x] Set up directory structure management for `.ai/context/`, `.ai/tasks/`, and `.ai/memory/`
-- [ ] Implement `.gitignore` awareness for all file operations
+- [x] Implement `.gitignore` awareness for all file operations
 
 ### CLI Development
 - [x] Implement `contextos init --md <path>` command (Base structure implemented)
 - [x] Implement `contextos init --text <string>` command (Base structure implemented)
-- [ ] Implement `contextos run --llm <provider>` command
-- [ ] Implement `/memory <text>` command for manual injection
+- [x] Implement `contextos run --llm <provider>` command
+- [x] Implement `/memory <text>` command for manual injection
 
 ### Context Generator
 - [x] Develop logic to parse project descriptions and generate `architecture.md`, `stack.md`, `rules.md`, and `features.md` in `.ai/context/`
@@ -42,6 +42,16 @@
 - [x] Interactive CLI flow for initialization (Clear context, Select LLM, Select Method)
 - [x] Support for initializing context by reading existing project .md files
 - [x] Interactive memory management (add, list)
-- [ ] Add memory clear command.
+- [x] Add memory clear command.
+
+### Feedback
+- [x] Review **architecture.md output**: Ensure clean architecture layers are correctly defined
+- [x] Validate **features.md tasks**: Check that AI-generated tasks are specific and actionable
+- [x] Enforce **rules.md guidelines**: Confirm coding standards and AI execution constraints are applied
+- [x] Check **stack.md setup**: Verify backend, database, and AI integration are consistent
+- [x] Test **AI output formatting**: Ensure raw markdown/code is generated without JSON or reasoning metadata
+- [x] Monitor **token usage**: Identify prompts that cause excessive token consumption and optimize
+- [x] Review **modular file references**: Make sure AI correctly references plans, rules, and architecture files
+- [x] Evaluate **edge case handling**: Confirm AI suggestions handle empty, duplicate, or invalid inputs
 ---
 *Note: Always read `.md` files in `docs/` to synchronize with the latest project architecture and rules.*
