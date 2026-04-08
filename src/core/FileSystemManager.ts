@@ -44,6 +44,17 @@ export class FileSystemManager {
   }
 
   /**
+   * Reads the current task list.
+   */
+  async readTasks(): Promise<string> {
+    const filePath = path.join(this.tasksDir, 'tasks.md');
+    if (!(await fs.pathExists(filePath))) {
+      return '';
+    }
+    return fs.readFile(filePath, 'utf8');
+  }
+
+  /**
    * Appends a decision or learning to the memory directory.
    */
   async appendMemory(type: 'decisions' | 'learnings', content: string): Promise<void> {

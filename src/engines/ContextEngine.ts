@@ -95,6 +95,54 @@ export class ContextEngine {
     }
   }
 
+  /**
+   * Synchronizes context files based on recent memory entries.
+   * This ensures that decisions recorded in memory are reflected in architecture, stack, etc.
+   */
+  async syncFromMemory(): Promise<void> {
+    console.log(chalk.blue('Synchronizing context with project memory...'));
+    try {
+      const decisions = await this.fsm.readMemory('decisions');
+      const learnings = await this.fsm.readMemory('learnings');
+      const contextFiles = await this.fsm.readContext();
+
+      if (!decisions && !learnings) {
+        console.log(chalk.yellow('No memory found to synchronize.'));
+        return;
+      }
+
+      for (const [fileName, content] of Object.entries(contextFiles)) {
+        console.log(chalk.gray(` - Checking if ${fileName} needs updates...`));
+        
+        const systemPrompt = `You are a synchronization agent. Your goal is to update ${fileName} based on new project decisions and learnings.
+Maintain the original structure but incorporate new facts. Return the full updated markdown.
+Rules: Raw markdown only, no JSON, no reasoning metadata.`;
+
+        const userPrompt = `
+Existing ${fileName}:
+${content}
+
+Project Memory (Decisions & Learnings):
+${decisions}
+${learnings}
+
+If there are contradictions or new details in memory that affect ${fileName}, update the content. If no changes are needed, return the original content exactly.`;
+
+        const response = await this.llm.generateCompletion(systemPrompt, userPrompt);
+        const updated = this.cleanMarkdownOutput(response.content);
+
+        if (updated && updated !== content && this.validateContextMarkdown(fileName, updated, 'sync')) {
+          await this.fsm.writeContextFile(fileName, updated);
+          console.log(chalk.green(`   [OK] ${fileName} synchronized.`));
+        } else {
+          console.log(chalk.gray(`   [SKIP] No changes needed for ${fileName}.`));
+        }
+      }
+    } catch (error: any) {
+      console.error(chalk.red('Context synchronization failed:'), error.message);
+    }
+  }
+
   private async walkDirectory(dirPath: string): Promise<string[]> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
     const files: string[] = [];

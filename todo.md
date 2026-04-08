@@ -19,8 +19,13 @@
 ### Agent Implementation
 - [x] Implement **Read Context** step: Load all files from `.ai/context/`
 - [x] Implement **Generate Tasks** step: LLM-based task extraction to `.ai/tasks/tasks.md`
-- [ ] Implement **Update Memory** step: Logic to record decisions and learnings in `.ai/memory/`
-- [ ] Implement **Execute Tasks** loop with idempotency and clear communication
+- [x] Implement **Update Memory** step: Logic to record decisions and learnings in `.ai/memory/` after task execution
+- [x] Implement **Execute Tasks** loop with idempotency and clear communication
+
+### Advanced Relationship & Automation (New)
+- [x] **(A) Task Automation & Memory Connection**: Enhanced `run` loop that queries memory for each task.
+- [x] **(B) Context Sync**: Automatically update `architecture.md`, `stack.md`, etc., when critical decisions are added to memory.
+- [x] **(C) Task Validation**: Implement a "Validator" pass to ensure generated tasks strictly follow `rules.md`.
 
 ### Rules & Validation
 - [ ] Enforce "Context is King" rule in agent prompts

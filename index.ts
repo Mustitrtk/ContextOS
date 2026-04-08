@@ -17,7 +17,7 @@ const program = new Command();
 const fsm = new FileSystemManager();
 const llmChoices = ['free', 'pro', 'local', 'openai', 'gemini', 'anthropic', 'pollinations'];
 
-async function addMemoryDecision(content: string[]): Promise<void> {
+async function addMemoryDecision(content: string[], providerName?: string): Promise<void> {
   if (!content || content.length === 0) {
     console.log(chalk.red('Please provide content to add to memory.'));
     return;
@@ -26,6 +26,15 @@ async function addMemoryDecision(content: string[]): Promise<void> {
   const text = content.join(' ');
   await fsm.appendMemory('decisions', text);
   console.log(chalk.green('[OK] Memory added successfully.'));
+
+  // Automatically sync context after memory addition (Point B)
+  try {
+    const provider = getLLMProvider(providerName || 'free');
+    const contextEngine = new ContextEngine(provider, fsm);
+    await contextEngine.syncFromMemory();
+  } catch (error: any) {
+    console.warn(chalk.yellow(`[WARN] Context sync skipped or failed: ${error.message}`));
+  }
 }
 
 program
@@ -159,7 +168,7 @@ program
     try {
       const provider = getLLMProvider(options.llm);
       const taskEngine = new TaskEngine(provider, fsm);
-      await taskEngine.generateInitialTasks();
+      await taskEngine.runAgentLoop();
     } catch (error: any) {
       console.error(chalk.red('Agent execution failed:'), error.message);
     }

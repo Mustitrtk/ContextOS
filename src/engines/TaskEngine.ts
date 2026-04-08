@@ -45,7 +45,14 @@ export class TaskEngine {
       const response = await this.llm.generateCompletion(systemMessage, userPrompt);
       this.logTokenEstimate('Task response', response.content);
 
-      const cleaned = this.cleanMarkdownOutput(response.content);
+      let cleaned = this.cleanMarkdownOutput(response.content);
+      
+      // Point (C): Task Validation against rules.md
+      if (contextFiles['rules.md']) {
+        console.log(chalk.gray(' - Validating tasks against project rules...'));
+        cleaned = await this.validateTasksAgainstRules(cleaned, contextFiles['rules.md']);
+      }
+
       const validated = this.validateTaskMarkdown(cleaned, Object.keys(contextFiles));
 
       await this.fsm.writeTasks(validated);
@@ -57,6 +64,85 @@ export class TaskEngine {
       console.log(chalk.green('[OK] Project tasks generated at .ai/tasks/tasks.md'));
     } catch (error: any) {
       console.error(chalk.red('Task generation failed:'), error.message);
+    }
+  }
+
+  /**
+   * Main execution loop: picks a task, executes it (simulated for now), and updates status.
+   */
+  async runAgentLoop(): Promise<void> {
+    const tasksMarkdown = await this.fsm.readTasks();
+    if (!tasksMarkdown) {
+      console.log(chalk.yellow('No tasks.md found. Generating initial tasks...'));
+      await this.generateInitialTasks();
+      return;
+    }
+
+    const lines = tasksMarkdown.split(/\r?\n/);
+    const taskIndex = lines.findIndex((line) => line.trim().startsWith('- [ ]'));
+
+    if (taskIndex === -1) {
+      console.log(chalk.green('All tasks are completed! [x]'));
+      return;
+    }
+
+    const taskLine = lines[taskIndex].trim();
+    const taskDescription = taskLine.replace('- [ ]', '').trim();
+
+    console.log(chalk.blue(`\n--- Next Task: ${taskDescription} ---`));
+
+    // Point (A): Query Memory for relevant info
+    const decisions = await this.fsm.readMemory('decisions');
+    const systemPrompt = `You are an execution agent.
+Task: ${taskDescription}
+Memory context: ${decisions}
+Rules: Raw markdown only, no JSON.`;
+
+    const userPrompt = `Based on the task and memory, describe how to execute this task. 
+If this is a code task, provide the file path and content. 
+If this is a conceptual task, provide the final decision.`;
+
+    console.log(chalk.gray(' - Querying memory and planning execution...'));
+    const response = await this.llm.generateCompletion(systemPrompt, userPrompt);
+    
+    console.log(chalk.cyan('\nExecution Proposal:'));
+    console.log(response.content);
+
+    // Simulated "Execute" - In a real agent, this would write files
+    console.log(chalk.gray('\n - Executing task and updating memory...'));
+    
+    // Mark task as done
+    lines[taskIndex] = taskLine.replace('[ ]', '[x]');
+    await this.fsm.writeTasks(lines.join('\n'));
+
+    // Record Learning (Phase 2: Update Memory step)
+    await this.fsm.appendMemory(
+      'learnings',
+      `Completed task: ${taskDescription}\nResult: ${response.content.slice(0, 200)}...`
+    );
+
+    console.log(chalk.green(`\n[OK] Task marked as completed. Use "npx contextos run" for the next task.`));
+  }
+
+  private async validateTasksAgainstRules(tasksMarkdown: string, rulesMarkdown: string): Promise<string> {
+    const systemPrompt = `You are a quality assurance agent. Your goal is to ensure project tasks comply with the project rules.
+Rules: Raw markdown only, no JSON, no reasoning metadata. Use checkbox format.`;
+
+    const userPrompt = `
+Proposed Tasks:
+${tasksMarkdown}
+
+Project Rules:
+${rulesMarkdown}
+
+If any task violates a rule, rewrite or remove it. Ensure all tasks are actionable and specific. Return the final markdown list.`;
+
+    try {
+      const response = await this.llm.generateCompletion(systemPrompt, userPrompt);
+      return this.cleanMarkdownOutput(response.content) || tasksMarkdown;
+    } catch (error) {
+      console.warn(chalk.yellow('   [WARN] Task validation failed, using original tasks.'));
+      return tasksMarkdown;
     }
   }
 
