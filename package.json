@@ -1,6 +1,6 @@
 {
   "name": "contextos",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI Project Brain - CLI tool for context engineering",
   "keywords": [
     "cli",
@@ -12,7 +12,6 @@
     "type": "git",
     "url": "ContextOS"
   },
-  "license": "MIT",
   "author": "Mustitrtk",
   "type": "commonjs",
   "main": "dist/index.js",
@@ -26,10 +25,16 @@
     "start": "node ./dist/index.js",
     "prebuild": "rimraf dist",
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "dev": "ts-node ./index.ts",
     "lint": "eslint index.ts",
     "format": "prettier --write \"index.ts\""
   },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "dependencies": {
     "axios": "^1.6.0",
     "chalk": "^4.1.2",

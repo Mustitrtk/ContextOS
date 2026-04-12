@@ -7,6 +7,7 @@ export class FileSystemManager {
   private contextDir: string;
   private tasksDir: string;
   private memoryDir: string;
+  private gitignorePatterns: string[] | null = null;
 
   constructor(baseDir: string = process.cwd()) {
     this.baseDir = baseDir;
@@ -43,6 +44,30 @@ export class FileSystemManager {
   }
 
   /**
+   * Appends a task to .ai/tasks/tasks.md
+   */
+  async appendTask(taskDescription: string): Promise<void> {
+    const filePath = path.join(this.tasksDir, 'tasks.md');
+    const taskEntry = `\n- [ ] ${taskDescription}`;
+    if (!(await fs.pathExists(filePath))) {
+      await fs.writeFile(filePath, `# Project Tasks\n${taskEntry}`, 'utf8');
+    } else {
+      await fs.appendFile(filePath, taskEntry, 'utf8');
+    }
+  }
+
+  /**
+   * Reads the current task list.
+   */
+  async readTasks(): Promise<string> {
+    const filePath = path.join(this.tasksDir, 'tasks.md');
+    if (!(await fs.pathExists(filePath))) {
+      return '';
+    }
+    return fs.readFile(filePath, 'utf8');
+  }
+
+  /**
    * Appends a decision or learning to the memory directory.
    */
   async appendMemory(type: 'decisions' | 'learnings', content: string): Promise<void> {
@@ -60,12 +85,118 @@ export class FileSystemManager {
     const files = await fs.readdir(this.contextDir);
     const context: Record<string, string> = {};
     for (const file of files) {
-      if (file.endsWith('.md')) {
-        const content = await fs.readFile(path.join(this.contextDir, file), 'utf8');
+      const fullPath = path.join(this.contextDir, file);
+      if (file.endsWith('.md') && !(await this.isGitIgnored(fullPath))) {
+        const content = await fs.readFile(fullPath, 'utf8');
         context[file] = content;
       }
     }
     return context;
+  }
+
+  async readMemory(type: 'decisions' | 'learnings'): Promise<string> {
+    const filePath = path.join(this.memoryDir, `${type}.md`);
+    if (!(await fs.pathExists(filePath))) {
+      return '';
+    }
+    return fs.readFile(filePath, 'utf8');
+  }
+
+  /**
+   * Clears all context files in the context directory.
+   */
+  async clearContext(): Promise<void> {
+    if (await fs.pathExists(this.contextDir)) {
+      await fs.emptyDir(this.contextDir);
+    }
+  }
+
+  /**
+   * Clears all tasks in the tasks directory.
+   */
+  async clearTasks(): Promise<void> {
+    if (await fs.pathExists(this.tasksDir)) {
+      await fs.emptyDir(this.tasksDir);
+    }
+  }
+
+  /**
+   * Clears all memory records in the memory directory.
+   */
+  async clearMemory(): Promise<void> {
+    if (await fs.pathExists(this.memoryDir)) {
+      await fs.emptyDir(this.memoryDir);
+    }
+  }
+
+  async isGitIgnored(targetPath: string): Promise<boolean> {
+    const relPath = path.relative(this.baseDir, targetPath);
+    if (!relPath || relPath.startsWith('..')) {
+      return false;
+    }
+
+    const normalizedRelPath = relPath.split(path.sep).join('/');
+    const patterns = await this.getGitignorePatterns();
+    if (patterns.length === 0) {
+      return false;
+    }
+
+    let ignored = false;
+    for (const rawPattern of patterns) {
+      const isNegation = rawPattern.startsWith('!');
+      const pattern = isNegation ? rawPattern.slice(1) : rawPattern;
+
+      if (this.matchesGitignorePattern(normalizedRelPath, pattern)) {
+        ignored = !isNegation;
+      }
+    }
+
+    return ignored;
+  }
+
+  private async getGitignorePatterns(): Promise<string[]> {
+    if (this.gitignorePatterns !== null) {
+      return this.gitignorePatterns;
+    }
+
+    const gitignorePath = path.join(this.baseDir, '.gitignore');
+    if (!(await fs.pathExists(gitignorePath))) {
+      this.gitignorePatterns = [];
+      return this.gitignorePatterns;
+    }
+
+    const raw = await fs.readFile(gitignorePath, 'utf8');
+    this.gitignorePatterns = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+    return this.gitignorePatterns;
+  }
+
+  private matchesGitignorePattern(normalizedRelPath: string, pattern: string): boolean {
+    const normalizedPattern = pattern.replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!normalizedPattern) {
+      return false;
+    }
+
+    if (normalizedPattern.endsWith('/')) {
+      const dir = normalizedPattern.slice(0, -1);
+      return normalizedRelPath === dir || normalizedRelPath.startsWith(`${dir}/`);
+    }
+
+    if (!normalizedPattern.includes('*')) {
+      return normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`);
+    }
+
+    const escaped = normalizedPattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*/g, '§§DOUBLE_STAR§§')
+      .replace(/\*/g, '[^/]*')
+      .replace(/§§DOUBLE_STAR§§/g, '.*');
+
+    const regex = new RegExp(`^${escaped}$`);
+    return regex.test(normalizedRelPath);
   }
 
   getAiDir(): string {

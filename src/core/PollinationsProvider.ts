@@ -19,7 +19,7 @@ export class PollinationsProvider implements ILLMProvider {
   }
 
   async generateCompletion(systemMessage: string, userPrompt: string): Promise<LLMResponse> {
-    const maxRetries = 3;
+    const maxRetries = 7;
     let attempt = 0;
 
     while (attempt < maxRetries) {
@@ -37,7 +37,7 @@ export class PollinationsProvider implements ILLMProvider {
           },
           {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 30000 // 30 second timeout
+            timeout: 60000 // 60 second timeout
           }
         );
 
@@ -45,11 +45,17 @@ export class PollinationsProvider implements ILLMProvider {
         return { content: content.trim() };
       } catch (error: any) {
         attempt++;
+        const statusCode = error.response?.status;
+        const isRetryableStatus = !statusCode || statusCode >= 500 || statusCode === 408 || statusCode === 429;
+        if (!isRetryableStatus) {
+          throw new Error(`Pollinations (Free API) failed with non-retryable status ${statusCode}: ${error.message}`);
+        }
         if (attempt >= maxRetries) {
           throw new Error(`Pollinations (Free API) failed after ${maxRetries} attempts: ${error.message}`);
         }
-        const waitTime = attempt * 2000; // Exponential backoff: 2s, 4s...
-        console.log(chalk.yellow(`   ! Server busy (Status ${error.response?.status || 'Error'}). Retrying in ${waitTime/1000}s... (Attempt ${attempt}/${maxRetries})`));
+        const backoffBaseMs = 2000 * Math.pow(2, attempt - 1);
+        const waitTime = Math.min(backoffBaseMs + Math.floor(Math.random() * 750), 20000);
+        console.log(chalk.yellow(`   ! Server busy (Status ${statusCode || 'Error'}). Retrying in ${(waitTime / 1000).toFixed(1)}s... (Attempt ${attempt}/${maxRetries})`));
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
