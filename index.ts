@@ -72,7 +72,7 @@ program
           }
         ]);
         if (clear) {
-          await fs.emptyDir(contextDir);
+          await fsm.clearContext();
           console.log(chalk.green('[OK] Context files cleared.'));
         }
       }
@@ -180,15 +180,46 @@ program
   .action(async () => {
     console.log(chalk.blue('Clearing ContextOS context files...'));
     try {
-      const contextDir = path.join(process.cwd(), '.ai', 'context');
-      if (await fs.pathExists(contextDir)) {
-        await fs.emptyDir(contextDir);
-        console.log(chalk.green('[OK] Context files cleared successfully.'));
-      } else {
-        console.log(chalk.yellow('No context directory found to clear.'));
-      }
+      await fsm.clearContext();
+      console.log(chalk.green('[OK] Context files cleared successfully.'));
     } catch (error: any) {
       console.error(chalk.red('Clear failed:'), error.message);
+    }
+  });
+
+program
+  .command('tasks')
+  .description('Manage project tasks (add, list, clear)')
+  .argument('<action>', 'Action to perform: add, list or clear')
+  .argument('[content...]', 'Task description (for "add" action)')
+  .action(async (action, content) => {
+    try {
+      await fsm.ensureStructure();
+
+      if (action === 'add') {
+        if (!content || content.length === 0) {
+          console.log(chalk.red('Please provide a task description.'));
+          return;
+        }
+        const taskDescription = content.join(' ');
+        await fsm.appendTask(taskDescription);
+        console.log(chalk.green('[OK] Task added successfully.'));
+      } else if (action === 'list') {
+        const tasks = await fsm.readTasks();
+        if (tasks) {
+          console.log(chalk.blue('\n--- Project Tasks ---'));
+          console.log(tasks);
+        } else {
+          console.log(chalk.yellow('No tasks found.'));
+        }
+      } else if (action === 'clear') {
+        await fsm.clearTasks();
+        console.log(chalk.green('[OK] Project tasks cleared successfully.'));
+      } else {
+        console.log(chalk.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
+      }
+    } catch (error: any) {
+      console.error(chalk.red('Tasks operation failed:'), error.message);
     }
   });
 
@@ -204,22 +235,25 @@ program
       if (action === 'add') {
         await addMemoryDecision(content);
       } else if (action === 'list') {
-        const memoryPath = path.join(process.cwd(), '.ai', 'memory', 'decisions.md');
-        if (await fs.pathExists(memoryPath)) {
-          const data = await fs.readFile(memoryPath, 'utf8');
+        const decisions = await fsm.readMemory('decisions');
+        const learnings = await fsm.readMemory('learnings');
+        
+        if (decisions || learnings) {
           console.log(chalk.blue('\n--- Project Memory ---'));
-          console.log(data);
+          if (decisions) {
+            console.log(chalk.cyan('\nDecisions:'));
+            console.log(decisions);
+          }
+          if (learnings) {
+            console.log(chalk.cyan('\nLearnings:'));
+            console.log(learnings);
+          }
         } else {
           console.log(chalk.yellow('No memory records found.'));
         }
       } else if (action === 'clear') {
-        const memoryDir = path.join(process.cwd(), '.ai', 'memory');
-        if (await fs.pathExists(memoryDir)) {
-          await fs.emptyDir(memoryDir);
-          console.log(chalk.green('[OK] Project memory cleared successfully.'));
-        } else {
-          console.log(chalk.yellow('No memory directory found.'));
-        }
+        await fsm.clearMemory();
+        console.log(chalk.green('[OK] Project memory cleared successfully.'));
       } else {
         console.log(chalk.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
       }
@@ -238,6 +272,57 @@ program
       await addMemoryDecision(content);
     } catch (error: any) {
       console.error(chalk.red('Memory operation failed:'), error.message);
+    }
+  });
+
+const dev = program.command('dev').description('Development tools');
+dev
+  .command('create-agent')
+  .description('Create a new agent based on context')
+  .addOption(new Option('-l, --llm <provider>', 'LLM provider').choices(llmChoices))
+  .action(async (options) => {
+    console.log(chalk.blue('Creating a new agent...'));
+    try {
+      const provider = getLLMProvider(options.llm || 'free');
+      const contextFiles = await fsm.readContext();
+      const systemPrompt = 'You are an agent factory. Based on the project context, define a new specialized agent.';
+      const userPrompt = `Project Context:\n${JSON.stringify(contextFiles)}\n\nDefine a new agent in markdown format.`;
+      const response = await provider.generateCompletion(systemPrompt, userPrompt);
+      await fsm.writeContextFile('agents.md', response.content);
+      console.log(chalk.green('[OK] Agent created and saved to .ai/context/agents.md'));
+    } catch (error: any) {
+      console.error(chalk.red('Failed to create agent:'), error.message);
+    }
+  });
+
+const test = program.command('test').description('Testing tools');
+test
+  .command('run')
+  .description('Run project tests')
+  .action(async () => {
+    console.log(chalk.blue('Running project tests...'));
+    try {
+      const { execSync } = require('child_process');
+      execSync('npm test', { stdio: 'inherit' });
+    } catch (error: any) {
+      console.error(chalk.red('Tests failed or no "test" script found in package.json.'));
+    }
+  });
+
+const doc = program.command('doc').description('Documentation tools');
+doc
+  .command('generate')
+  .description('Generate/Update project documentation')
+  .addOption(new Option('-l, --llm <provider>', 'LLM provider').choices(llmChoices))
+  .action(async (options) => {
+    console.log(chalk.blue('Generating/Updating documentation...'));
+    try {
+      const provider = getLLMProvider(options.llm || 'free');
+      const contextEngine = new ContextEngine(provider, fsm);
+      await contextEngine.syncFromMemory();
+      console.log(chalk.green('[OK] Documentation updated based on memory.'));
+    } catch (error: any) {
+      console.error(chalk.red('Documentation generation failed:'), error.message);
     }
   });
 

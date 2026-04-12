@@ -48,6 +48,9 @@
 - [x] Support for initializing context by reading existing project .md files
 - [x] Interactive memory management (add, list)
 - [x] Add memory clear command.
+- [x] Add tasks clear command.
+- [x] Add contextos tasks add command.
+- [x] Professional CLI publishing setup (files, prepublishOnly).
 
 ### Feedback
 - [x] Review **architecture.md output**: Ensure clean architecture layers are correctly defined
@@ -58,5 +61,6 @@
 - [x] Monitor **token usage**: Identify prompts that cause excessive token consumption and optimize
 - [x] Review **modular file references**: Make sure AI correctly references plans, rules, and architecture files
 - [x] Evaluate **edge case handling**: Confirm AI suggestions handle empty, duplicate, or invalid inputs
+- [x] Read **feedback.md**: Implement all the requests.
 ---
 *Note: Always read `.md` files in `docs/` to synchronize with the latest project architecture and rules.*
