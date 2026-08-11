@@ -49,6 +49,9 @@
 - [x] Codebase Scanner for Context Generation: Auto-detect stack, architecture, rules, and features by scanning existing codebase files and structure (via --scan or interactive init)
 - [x] Interactive memory management (add, list)
 - [x] Add memory clear command.
+- [x] Add tasks clear command.
+- [x] Add contextos tasks add command.
+- [x] Professional CLI publishing setup (files, prepublishOnly).
 
 ### Feedback
 - [x] Review **architecture.md output**: Ensure clean architecture layers are correctly defined

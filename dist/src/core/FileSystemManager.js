@@ -1,0 +1,210 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.FileSystemManager = void 0;
+const fs = __importStar(require("fs-extra"));
+const path = __importStar(require("path"));
+class FileSystemManager {
+    constructor(baseDir = process.cwd()) {
+        this.gitignorePatterns = null;
+        this.baseDir = baseDir;
+        this.aiDir = path.join(this.baseDir, '.ai');
+        this.contextDir = path.join(this.aiDir, 'context');
+        this.tasksDir = path.join(this.aiDir, 'tasks');
+        this.memoryDir = path.join(this.aiDir, 'memory');
+    }
+    /**
+     * Initializes the .ai/ directory structure if it doesn't exist.
+     */
+    async ensureStructure() {
+        await fs.ensureDir(this.aiDir);
+        await fs.ensureDir(this.contextDir);
+        await fs.ensureDir(this.tasksDir);
+        await fs.ensureDir(this.memoryDir);
+    }
+    /**
+     * Writes context files to .ai/context/
+     */
+    async writeContextFile(fileName, content) {
+        const filePath = path.join(this.contextDir, fileName);
+        await fs.writeFile(filePath, content, 'utf8');
+    }
+    /**
+     * Writes tasks to .ai/tasks/tasks.md
+     */
+    async writeTasks(content) {
+        const filePath = path.join(this.tasksDir, 'tasks.md');
+        await fs.writeFile(filePath, content, 'utf8');
+    }
+    /**
+     * Appends a task to .ai/tasks/tasks.md
+     */
+    async appendTask(taskDescription) {
+        const filePath = path.join(this.tasksDir, 'tasks.md');
+        const taskEntry = `\n- [ ] ${taskDescription}`;
+        if (!(await fs.pathExists(filePath))) {
+            await fs.writeFile(filePath, `# Project Tasks\n${taskEntry}`, 'utf8');
+        }
+        else {
+            await fs.appendFile(filePath, taskEntry, 'utf8');
+        }
+    }
+    /**
+     * Reads the current task list.
+     */
+    async readTasks() {
+        const filePath = path.join(this.tasksDir, 'tasks.md');
+        if (!(await fs.pathExists(filePath))) {
+            return '';
+        }
+        return fs.readFile(filePath, 'utf8');
+    }
+    /**
+     * Appends a decision or learning to the memory directory.
+     */
+    async appendMemory(type, content) {
+        const fileName = `${type}.md`;
+        const filePath = path.join(this.memoryDir, fileName);
+        const timestamp = new Date().toISOString();
+        const entry = `\n## ${timestamp}\n${content}\n`;
+        await fs.appendFile(filePath, entry, 'utf8');
+    }
+    /**
+     * Reads all context files.
+     */
+    async readContext() {
+        const files = await fs.readdir(this.contextDir);
+        const context = {};
+        for (const file of files) {
+            const fullPath = path.join(this.contextDir, file);
+            if (file.endsWith('.md') && !(await this.isGitIgnored(fullPath))) {
+                const content = await fs.readFile(fullPath, 'utf8');
+                context[file] = content;
+            }
+        }
+        return context;
+    }
+    async readMemory(type) {
+        const filePath = path.join(this.memoryDir, `${type}.md`);
+        if (!(await fs.pathExists(filePath))) {
+            return '';
+        }
+        return fs.readFile(filePath, 'utf8');
+    }
+    /**
+     * Clears all context files in the context directory.
+     */
+    async clearContext() {
+        if (await fs.pathExists(this.contextDir)) {
+            await fs.emptyDir(this.contextDir);
+        }
+    }
+    /**
+     * Clears all tasks in the tasks directory.
+     */
+    async clearTasks() {
+        if (await fs.pathExists(this.tasksDir)) {
+            await fs.emptyDir(this.tasksDir);
+        }
+    }
+    /**
+     * Clears all memory records in the memory directory.
+     */
+    async clearMemory() {
+        if (await fs.pathExists(this.memoryDir)) {
+            await fs.emptyDir(this.memoryDir);
+        }
+    }
+    async isGitIgnored(targetPath) {
+        const relPath = path.relative(this.baseDir, targetPath);
+        if (!relPath || relPath.startsWith('..')) {
+            return false;
+        }
+        const normalizedRelPath = relPath.split(path.sep).join('/');
+        const patterns = await this.getGitignorePatterns();
+        if (patterns.length === 0) {
+            return false;
+        }
+        let ignored = false;
+        for (const rawPattern of patterns) {
+            const isNegation = rawPattern.startsWith('!');
+            const pattern = isNegation ? rawPattern.slice(1) : rawPattern;
+            if (this.matchesGitignorePattern(normalizedRelPath, pattern)) {
+                ignored = !isNegation;
+            }
+        }
+        return ignored;
+    }
+    async getGitignorePatterns() {
+        if (this.gitignorePatterns !== null) {
+            return this.gitignorePatterns;
+        }
+        const gitignorePath = path.join(this.baseDir, '.gitignore');
+        if (!(await fs.pathExists(gitignorePath))) {
+            this.gitignorePatterns = [];
+            return this.gitignorePatterns;
+        }
+        const raw = await fs.readFile(gitignorePath, 'utf8');
+        this.gitignorePatterns = raw
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0 && !line.startsWith('#'));
+        return this.gitignorePatterns;
+    }
+    matchesGitignorePattern(normalizedRelPath, pattern) {
+        const normalizedPattern = pattern.replace(/\\/g, '/').replace(/^\/+/, '');
+        if (!normalizedPattern) {
+            return false;
+        }
+        if (normalizedPattern.endsWith('/')) {
+            const dir = normalizedPattern.slice(0, -1);
+            return normalizedRelPath === dir || normalizedRelPath.startsWith(`${dir}/`);
+        }
+        if (!normalizedPattern.includes('*')) {
+            return normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`);
+        }
+        const escaped = normalizedPattern
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*\*/g, '§§DOUBLE_STAR§§')
+            .replace(/\*/g, '[^/]*')
+            .replace(/§§DOUBLE_STAR§§/g, '.*');
+        const regex = new RegExp(`^${escaped}$`);
+        return regex.test(normalizedRelPath);
+    }
+    getAiDir() {
+        return this.aiDir;
+    }
+}
+exports.FileSystemManager = FileSystemManager;

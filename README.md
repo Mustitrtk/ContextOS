@@ -41,8 +41,10 @@ The `init` command is interactive and can build context from:
 - A folder of project markdown files
 
 ```bash
+
 npx contextos init
 npx contextos init --scan .
+
 ```
 
 Direct flags are also supported for automation: `--scan`, `--text`, `--md`, `--llm`.
@@ -51,8 +53,11 @@ Direct flags are also supported for automation: `--scan`, `--text`, `--md`, `--l
 Generates or advances `.ai/tasks/tasks.md` based on project context and memory.
 
 ```bash
-npx contextos run
-npx contextos run --llm pro
+
+contextos run
+# or force a specific mode
+contextos run --llm pro
+
 ```
 
 Supported `--llm` values: `free`, `pro`, `local`, `openai`, `gemini`, `anthropic`, `pollinations`.
@@ -66,21 +71,32 @@ Task generation and execution follow these rules:
 Clears generated context files in `.ai/context/`.
 
 ```bash
-npx contextos clear
+contextos clear
 ```
 
 ### 4. Manage Tasks (`tasks`)
-Manage generated task files.
-- Clear: `npx contextos tasks clear`
+Manage the actionable project task list.
+- **Add**: `contextos tasks add "Implement user authentication."`
+- **List**: `contextos tasks list`
+- **Clear**: `contextos tasks clear`
 
 ### 5. Manage Memory (`memory`)
 Maintain a persistent log of decisions and learnings.
-- Add: `npx contextos memory add "We chose PostgreSQL for scalability."`
-- List: `npx contextos memory list`
-- Clear: `npx contextos memory clear`
-- Quick inject: `npx contextos /memory "We should ship the MVP first."`
+- **Add**: `contextos memory add "We chose PostgreSQL for scalability."`
+- **List**: `contextos memory list`
+- **Clear**: `contextos memory clear`
+- **Quick Inject**: `contextos /memory "We should ship the MVP first."`
 
-When using folder-based initialization, files and folders matching `.gitignore` are skipped automatically.
+### 6. Development Tools (`dev`)
+- **Create Agent**: `contextos dev create-agent` - Define a new specialized agent based on context.
+
+### 7. Testing Tools (`test`)
+- **Run**: `contextos test run` - Execute project tests.
+
+### 8. Documentation Tools (`doc`)
+- **Generate**: `contextos doc generate` - Update documentation based on memory and context.
+
+When using folder-based initialization, files and folders that match `.gitignore` are skipped automatically.
 
 ## LLM Selection Logic
 
@@ -89,15 +105,8 @@ ContextOS supports three routing modes:
 - Pro: prefers Gemini or OpenAI when API keys are available.
 - Local: connects to a self-hosted compatible endpoint such as LM Studio or Ollama.
 
-If an explicit provider is unavailable, ContextOS falls back through the configured provider chain.
-
-## Tech Stack
-
-- Runtime: Node.js
-- Language: TypeScript
-- CLI framework: Commander.js and Inquirer.js
-- Console styling: Chalk
-
-## License
-
-MIT
+## 🏗️ Tech Stack
+- **Runtime**: Node.js
+- **Language**: TypeScript
+- **CLI Framework**: Commander.js & Inquirer.js
+- **Styling**: Chalk

@@ -44,6 +44,19 @@ export class FileSystemManager {
   }
 
   /**
+   * Appends a task to .ai/tasks/tasks.md
+   */
+  async appendTask(taskDescription: string): Promise<void> {
+    const filePath = path.join(this.tasksDir, 'tasks.md');
+    const taskEntry = `\n- [ ] ${taskDescription}`;
+    if (!(await fs.pathExists(filePath))) {
+      await fs.writeFile(filePath, `# Project Tasks\n${taskEntry}`, 'utf8');
+    } else {
+      await fs.appendFile(filePath, taskEntry, 'utf8');
+    }
+  }
+
+  /**
    * Reads the current task list.
    */
   async readTasks(): Promise<string> {
@@ -100,6 +113,33 @@ export class FileSystemManager {
       return '';
     }
     return fs.readFile(filePath, 'utf8');
+  }
+
+  /**
+   * Clears all context files in the context directory.
+   */
+  async clearContext(): Promise<void> {
+    if (await fs.pathExists(this.contextDir)) {
+      await fs.emptyDir(this.contextDir);
+    }
+  }
+
+  /**
+   * Clears all tasks in the tasks directory.
+   */
+  async clearTasks(): Promise<void> {
+    if (await fs.pathExists(this.tasksDir)) {
+      await fs.emptyDir(this.tasksDir);
+    }
+  }
+
+  /**
+   * Clears all memory records in the memory directory.
+   */
+  async clearMemory(): Promise<void> {
+    if (await fs.pathExists(this.memoryDir)) {
+      await fs.emptyDir(this.memoryDir);
+    }
   }
 
   async isGitIgnored(targetPath: string): Promise<boolean> {
