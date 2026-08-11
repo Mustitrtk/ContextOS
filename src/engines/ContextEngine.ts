@@ -1,5 +1,6 @@
 import { ILLMProvider } from '../core/types';
 import { FileSystemManager } from '../core/FileSystemManager';
+import { CodebaseScanner } from '../utils/CodebaseScanner';
 import * as fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
@@ -92,6 +93,20 @@ export class ContextEngine {
       await this.generateContext(chunks.join('\n\n'));
     } catch (error: any) {
       console.error(chalk.red(`Error reading folder: ${error.message}`));
+    }
+  }
+
+  /**
+   * Generates context by scanning an existing codebase (structure, config files, source samples).
+   */
+  async generateFromCodebase(dirPath: string): Promise<void> {
+    console.log(chalk.blue(`Scanning codebase at ${dirPath}...`));
+    try {
+      const scanner = new CodebaseScanner(this.fsm);
+      const overview = await scanner.scanCodebase(dirPath);
+      await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`);
+    } catch (error: any) {
+      console.error(chalk.red(`Error scanning codebase: ${error.message}`));
     }
   }
 
