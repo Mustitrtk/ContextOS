@@ -47,6 +47,7 @@ program
   .description('Initialize project context (Interactive)')
   .option('-t, --text <description>', 'Directly initialize with a text description')
   .option('-m, --md <path>', 'Directly initialize with a markdown file')
+  .option('-s, --scan [path]', 'Scan existing codebase files & structure to generate context')
   .addOption(
     new Option('-l, --llm <provider>', 'Directly specify the LLM provider').choices(llmChoices)
   )
@@ -96,7 +97,11 @@ program
       const provider = getLLMProvider(providerName);
       const contextEngine = new ContextEngine(provider, fsm);
 
-      if (options.text) {
+      if (options.scan) {
+        const scanPath = typeof options.scan === 'string' ? options.scan : './';
+        await contextEngine.generateFromCodebase(path.resolve(scanPath));
+        return;
+      } else if (options.text) {
         description = options.text;
       } else if (options.md) {
         description = await fs.readFile(path.resolve(options.md), 'utf8');
@@ -107,6 +112,7 @@ program
             name: 'initMethod',
             message: 'How would you like to build the project context?',
             choices: [
+              { name: 'Scan existing codebase (auto-detect stack & architecture)', value: 'scan' },
               { name: 'Enter text description', value: 'text' },
               { name: 'Load from a Markdown file', value: 'file' },
               { name: 'Analyze existing project .md files', value: 'folder' }
@@ -115,7 +121,19 @@ program
         ]);
         method = initMethod;
 
-        if (method === 'text') {
+        if (method === 'scan') {
+          const { scanPath } = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'scanPath',
+              message: 'Enter codebase directory path to scan:',
+              default: './',
+              validate: async (input) => (await fs.pathExists(input)) || 'Folder does not exist.'
+            }
+          ]);
+          await contextEngine.generateFromCodebase(path.resolve(scanPath));
+          return;
+        } else if (method === 'text') {
           const { text } = await inquirer.prompt([
             {
               type: 'input',
@@ -189,37 +207,24 @@ program
 
 program
   .command('tasks')
-  .description('Manage project tasks (add, list, clear)')
-  .argument('<action>', 'Action to perform: add, list or clear')
-  .argument('[content...]', 'Task description (for "add" action)')
-  .action(async (action, content) => {
+  .description('Manage generated task files')
+  .argument('<action>', 'Action to perform: clear')
+  .action(async (action) => {
     try {
       await fsm.ensureStructure();
 
-      if (action === 'add') {
-        if (!content || content.length === 0) {
-          console.log(chalk.red('Please provide a task description.'));
-          return;
-        }
-        const taskDescription = content.join(' ');
-        await fsm.appendTask(taskDescription);
-        console.log(chalk.green('[OK] Task added successfully.'));
-      } else if (action === 'list') {
-        const tasks = await fsm.readTasks();
-        if (tasks) {
-          console.log(chalk.blue('\n--- Project Tasks ---'));
-          console.log(tasks);
+      if (action === 'clear') {
+        const cleared = await fsm.clearTasks();
+        if (cleared) {
+          console.log(chalk.green('[OK] Generated tasks cleared successfully.'));
         } else {
-          console.log(chalk.yellow('No tasks found.'));
+          console.log(chalk.yellow('No tasks.md file found to clear.'));
         }
-      } else if (action === 'clear') {
-        await fsm.clearTasks();
-        console.log(chalk.green('[OK] Project tasks cleared successfully.'));
       } else {
-        console.log(chalk.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
+        console.log(chalk.red(`Unknown action: ${action}. Use "clear".`));
       }
     } catch (error: any) {
-      console.error(chalk.red('Tasks operation failed:'), error.message);
+      console.error(chalk.red('Task operation failed:'), error.message);
     }
   });
 

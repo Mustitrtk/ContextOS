@@ -68,6 +68,19 @@ export class FileSystemManager {
   }
 
   /**
+   * Clears the generated task list file while keeping the tasks directory.
+   */
+  async clearTasks(): Promise<boolean> {
+    const filePath = path.join(this.tasksDir, 'tasks.md');
+    if (!(await fs.pathExists(filePath))) {
+      return false;
+    }
+
+    await fs.remove(filePath);
+    return true;
+  }
+
+  /**
    * Appends a decision or learning to the memory directory.
    */
   async appendMemory(type: 'decisions' | 'learnings', content: string): Promise<void> {
@@ -180,13 +193,24 @@ export class FileSystemManager {
       return false;
     }
 
+    // Check if this is a basename-only pattern (no slash in pattern)
+    const isBasenamePattern = !normalizedPattern.includes('/');
+    const basename = normalizedRelPath.split('/').pop() || normalizedRelPath;
+
     if (normalizedPattern.endsWith('/')) {
       const dir = normalizedPattern.slice(0, -1);
       return normalizedRelPath === dir || normalizedRelPath.startsWith(`${dir}/`);
     }
 
     if (!normalizedPattern.includes('*')) {
-      return normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`);
+      if (normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`)) {
+        return true;
+      }
+      // For basename patterns without wildcards (e.g. '.env'), also match against basename
+      if (isBasenamePattern && basename === normalizedPattern) {
+        return true;
+      }
+      return false;
     }
 
     const escaped = normalizedPattern
@@ -196,7 +220,16 @@ export class FileSystemManager {
       .replace(/§§DOUBLE_STAR§§/g, '.*');
 
     const regex = new RegExp(`^${escaped}$`);
-    return regex.test(normalizedRelPath);
+    if (regex.test(normalizedRelPath)) {
+      return true;
+    }
+
+    // For basename-only glob patterns (e.g. '*.log'), also test against just the basename
+    if (isBasenamePattern && regex.test(basename)) {
+      return true;
+    }
+
+    return false;
   }
 
   getAiDir(): string {

@@ -1,8 +1,8 @@
 # ContextOS
 
-ContextOS is an AI-powered project brain and context engineering CLI tool. It automates documentation, task management, and decision-tracking for your software projects.
+ContextOS is an AI-powered project brain and context engineering CLI tool. It automates documentation, task management, and decision tracking for software projects.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 npm install
@@ -10,14 +10,15 @@ npm run build
 npx contextos init
 ```
 
-## 🛠️ Setup
+## Setup
 
 Create a `.env` file in the root directory:
 
 ```env
 # --- FREE MODELS (No Key Required) ---
-# Uses Pollinations.ai by default.
-FREE_LLM_MODEL=openai 
+# Uses Pollinations.ai by default. The default free model is `openai`
+# unless you override it with another Pollinations-supported model name.
+FREE_LLM_MODEL=openai
 
 # --- PRO MODELS (Requires API Key) ---
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -27,35 +28,48 @@ ANTHROPIC_API_KEY=your_anthropic_api_key_here
 # --- LOCAL MODELS (Self-Hosted) ---
 LOCAL_LLM_URL=http://localhost:1234/v1
 LOCAL_LLM_MODEL=local-model
+LOCAL_LLM_KEY=optional_local_api_key
 ```
 
-## 🕹️ Commands
+## Commands
 
 ### 1. Initialize Project (`init`)
-The `init` command is now **fully interactive**. It will guide you through:
-- **Cleaning**: Option to clear existing context files.
-- **Provider Selection**: Choose between **Free**, **Pro**, or **Local** LLMs.
-- **Context Building**:
-    - **Text**: Enter a description manually.
-    - **File**: Load from an existing `.md` file.
-    - **Folder**: Analyze all `.md` files in a project folder to build context.
+The `init` command is interactive and can build context from:
+- Scanning an existing codebase (auto-detects project structure, stack, config files & code)
+- A direct text description
+- An existing `.md` file
+- A folder of project markdown files
 
 ```bash
-contextos init
+
+npx contextos init
+npx contextos init --scan .
+
 ```
-*Direct flags are still supported for automation: `--text`, `--md`, `--llm`.*
+
+Direct flags are also supported for automation: `--scan`, `--text`, `--md`, `--llm`.
 
 ### 2. Run Agent (`run`)
-Generates an actionable task list (`tasks.md`) based on your project context.
+Generates or advances `.ai/tasks/tasks.md` based on project context and memory.
+
 ```bash
+
 contextos run
 # or force a specific mode
 contextos run --llm pro
+
 ```
+
 Supported `--llm` values: `free`, `pro`, `local`, `openai`, `gemini`, `anthropic`, `pollinations`.
 
+Task generation and execution follow these rules:
+- Context is King: tasks must map back to files in `.ai/context/`.
+- Memory First: `run` checks relevant entries in `.ai/memory/decisions.md` and `.ai/memory/learnings.md` before proposing execution.
+- Actionable Tasks Only: vague items are filtered out, phase headers are enforced, and missing context refs are inferred or repaired.
+
 ### 3. Clear Context (`clear`)
-Surgical command to wipe all generated context files in `.ai/context/`.
+Clears generated context files in `.ai/context/`.
+
 ```bash
 contextos clear
 ```
@@ -84,14 +98,12 @@ Maintain a persistent log of decisions and learnings.
 
 When using folder-based initialization, files and folders that match `.gitignore` are skipped automatically.
 
-When using folder-based initialization, files and folders that match `.gitignore` are skipped automatically.
+## LLM Selection Logic
 
-## 🧠 LLM Selection Logic
-
-ContextOS is designed to be flexible:
-- **Free**: No keys needed. Uses public APIs (Pollinations).
-- **Pro**: High-quality reasoning using Gemini (Free tier available) or OpenAI.
-- **Local**: Complete privacy. Connects to your local LLM (LM Studio, Ollama, etc.).
+ContextOS supports three routing modes:
+- Free: no API key required, routed through Pollinations.
+- Pro: prefers Gemini or OpenAI when API keys are available.
+- Local: connects to a self-hosted compatible endpoint such as LM Studio or Ollama.
 
 ## 🏗️ Tech Stack
 - **Runtime**: Node.js

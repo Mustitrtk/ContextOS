@@ -27,6 +27,7 @@
     "build": "tsc",
     "prepublishOnly": "npm run build",
     "dev": "ts-node ./index.ts",
+    "test": "ts-node tests/unit.test.ts && ts-node tests/integration.test.ts",
     "lint": "eslint index.ts",
     "format": "prettier --write \"index.ts\""
   },
