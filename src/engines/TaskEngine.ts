@@ -162,6 +162,7 @@ export class TaskEngine {
       console.log(chalk.green('[OK] Project tasks generated at .ai/tasks/tasks.md'));
     } catch (error: any) {
       console.error(chalk.red('Task generation failed:'), error.message);
+      throw error;
     }
   }
 

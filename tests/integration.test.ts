@@ -120,6 +120,7 @@ async function runIntegrationTests(): Promise<boolean> {
     const initialTasks = await fsm.readTasks();
     assert(initialTasks.includes('Implement core CLI command handler'), 'TaskEngine: Generates initial tasks');
     assert(initialTasks.includes('(ref: architecture.md)'), 'TaskEngine: Tasks include context file references');
+    assert(!initialTasks.includes('# tasks.md (Fallback)'), 'TaskEngine: Preserves valid tasks when rule validation output is unusable');
 
     // ----------------------------------------------------
     // Test 3: TaskEngine Agent execution loop (runAgentLoop)

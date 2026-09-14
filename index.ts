@@ -19,8 +19,7 @@ const llmChoices = ['free', 'pro', 'local', 'openai', 'gemini', 'anthropic', 'po
 
 async function addMemoryDecision(content: string[], providerName?: string): Promise<void> {
   if (!content || content.length === 0) {
-    console.log(chalk.red('Please provide content to add to memory.'));
-    return;
+    throw new Error('Please provide content to add to memory.');
   }
 
   const text = content.join(' ');
@@ -171,6 +170,7 @@ program
       await contextEngine.generateContext(description);
     } catch (error: any) {
       console.error(chalk.red('Initialization failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -189,6 +189,7 @@ program
       await taskEngine.runAgentLoop();
     } catch (error: any) {
       console.error(chalk.red('Agent execution failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -202,18 +203,34 @@ program
       console.log(chalk.green('[OK] Context files cleared successfully.'));
     } catch (error: any) {
       console.error(chalk.red('Clear failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
 program
   .command('tasks')
-  .description('Manage generated task files')
-  .argument('<action>', 'Action to perform: clear')
-  .action(async (action) => {
+  .description('Manage project tasks (add, list, clear)')
+  .argument('<action>', 'Action to perform: add, list or clear')
+  .argument('[content...]', 'Task description (for "add" action)')
+  .action(async (action, content) => {
     try {
       await fsm.ensureStructure();
 
-      if (action === 'clear') {
+      if (action === 'add') {
+        if (!content || content.length === 0) {
+          throw new Error('Please provide a task description.');
+        }
+        await fsm.appendTask(content.join(' '));
+        console.log(chalk.green('[OK] Task added successfully.'));
+      } else if (action === 'list') {
+        const tasks = await fsm.readTasks();
+        if (tasks) {
+          console.log(chalk.blue('\n--- Project Tasks ---'));
+          console.log(tasks);
+        } else {
+          console.log(chalk.yellow('No tasks found.'));
+        }
+      } else if (action === 'clear') {
         const cleared = await fsm.clearTasks();
         if (cleared) {
           console.log(chalk.green('[OK] Generated tasks cleared successfully.'));
@@ -221,10 +238,11 @@ program
           console.log(chalk.yellow('No tasks.md file found to clear.'));
         }
       } else {
-        console.log(chalk.red(`Unknown action: ${action}. Use "clear".`));
+        throw new Error(`Unknown action: ${action}. Use "add", "list" or "clear".`);
       }
     } catch (error: any) {
       console.error(chalk.red('Task operation failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -264,6 +282,7 @@ program
       }
     } catch (error: any) {
       console.error(chalk.red('Memory operation failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -277,6 +296,7 @@ program
       await addMemoryDecision(content);
     } catch (error: any) {
       console.error(chalk.red('Memory operation failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -297,6 +317,7 @@ dev
       console.log(chalk.green('[OK] Agent created and saved to .ai/context/agents.md'));
     } catch (error: any) {
       console.error(chalk.red('Failed to create agent:'), error.message);
+      process.exitCode = 1;
     }
   });
 
@@ -311,6 +332,7 @@ test
       execSync('npm test', { stdio: 'inherit' });
     } catch (error: any) {
       console.error(chalk.red('Tests failed or no "test" script found in package.json.'));
+      process.exitCode = 1;
     }
   });
 
@@ -328,6 +350,7 @@ doc
       console.log(chalk.green('[OK] Documentation updated based on memory.'));
     } catch (error: any) {
       console.error(chalk.red('Documentation generation failed:'), error.message);
+      process.exitCode = 1;
     }
   });
 

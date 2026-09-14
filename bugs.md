@@ -51,8 +51,37 @@
 
 - [x] .ai/tasks/tasks.md dosyasını da temizleyecek bir komut eklenmeli (`npx contextos tasks clear` added)
 
+# Bugs
+
+## Kritik
+
+- [x] **Build/Test başarısız**: Yinelenen `clearTasks` tanımı kaldırıldı; `npm run build` ve `npm test` geçiyor.
+- [x] **Yanlış exit code**: Hata yakalayan CLI komutları artık `process.exitCode = 1` atıyor; `run` ve `test run` başarısızlıkları otomasyona doğru aktarılıyor.
+- [x] **tasks add / tasks list uygulanmamış**: `contextos tasks add`, `list` ve `clear` CLI'da uygulanıp README ile hizalandı.
+
+## Diğer bulgular
+
+- [x] **`run --llm local`**: Task üretim hatası artık TaskEngine'den CLI'a iletiliyor ve komut başarısız exit code ile tamamlanıyor.
+- [ ] **`dev create-agent --llm local`**: Yerel model erişilemez olduğunda hata veriyor (bekleniyor, ama kontrol edilmeli).
+- [ ] **Derleme çıktıları**: Build hatasına rağmen takip edilen `dist/` dosyaları güncel kaynakla yeniden yazılmış durumda; TypeScript kaynak dosyalarına dokunulmamış, sadece derleme çıktıları değişmiş.
+- [ ] **İnteraktif init menüsü test edilemedi**: Bu terminalden interaktif menüye cevap verilemediği için manuel seçim akışı tam test edilemedi; `text`, `md` ve `scan` alt akışları doğrudan test edildi ve çalışıyor.
+
+## Çalışan komutlar (referans)
+
+- `init --text`, `init --md`, `init --scan` → LLM yoksa dört context dosyasını fallback içerikle oluşturuyor.
+- `clear` → çalışıyor.
+- `memory add`, `/memory`, `memory list`, `memory clear` → çalışıyor.
+- `doc generate --llm local` → memory yoksa çalışıyor.
+- `tasks clear` → çalışıyor.
+
+## Önerilen düzeltme sırası
+
+1. Çift `clearTasks` tanımını çöz (build/test'i yeşile al).
+2. Başarısız CLI işlemlerine doğru exit code döndürülmesini sağla (CI/otomasyon için kritik).
+3. README ile `tasks` komutlarını hizala (add/list'i uygula veya README'yi güncelle).
+
 ### Olası Hatalar ve Test Edilecek Riskler (Potential Bugs & Audit TODOs)
-- [ ] **TaskEngine Kural Doğrulamasında Görev Kaybı (Kritik Bug)**:
+- [x] **TaskEngine Kural Doğrulamasında Görev Kaybı (Kritik Bug)**:
   - `validateTasksAgainstRules` LLM çağrısı başarısız olduğunda veya LLM onay kutusu (`- [ ]`) formatı dışında genel bir metin döndürdüğünde, `validateTaskMarkdown` ilk adımda başarıyla üretilmiş tüm detaylı görevleri silip genel sabit şablon görevleriyle (`# tasks.md (Fallback)`) değiştirmektedir.
   - *Çözüm Önerisi*: Kural doğrulama çıktısı ayrıştırılamazsa genel fallback'e düşmek yerine ilk adımda üretilen ham görevler korunmalıdır.
 - [ ] **`contextos memory add` / `syncFromMemory` Sağlayıcı Uyuşmazlığı**:

@@ -41,6 +41,7 @@ class CodebaseScanner {
         this.maxDepth = 4;
         this.maxSampleFileBytes = 3000;
         this.maxTotalSampleFiles = 20;
+        this.maxTotalChars = 30000;
         this.fsm = fsm;
     }
     /**
@@ -66,7 +67,13 @@ class CodebaseScanner {
         if (sourceSamples) {
             sections.push(`### Key Source File Samples\n${sourceSamples}`);
         }
-        return sections.join('\n\n');
+        // Enforce total character limit to prevent token overflow with free LLM providers
+        let result = sections.join('\n\n');
+        if (result.length > this.maxTotalChars) {
+            result = result.slice(0, this.maxTotalChars);
+            result += '\n\n> [NOTE] Codebase analysis was truncated to fit within LLM token limits. Use a Pro LLM for complete analysis.';
+        }
+        return result;
     }
     async buildDirectoryTree(dirPath, rootDir, currentDepth) {
         if (currentDepth > this.maxDepth) {

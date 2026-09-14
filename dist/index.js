@@ -53,8 +53,7 @@ const fsm = new FileSystemManager_1.FileSystemManager();
 const llmChoices = ['free', 'pro', 'local', 'openai', 'gemini', 'anthropic', 'pollinations'];
 async function addMemoryDecision(content, providerName) {
     if (!content || content.length === 0) {
-        console.log(chalk_1.default.red('Please provide content to add to memory.'));
-        return;
+        throw new Error('Please provide content to add to memory.');
     }
     const text = content.join(' ');
     await fsm.appendMemory('decisions', text);
@@ -78,6 +77,7 @@ program
     .description('Initialize project context (Interactive)')
     .option('-t, --text <description>', 'Directly initialize with a text description')
     .option('-m, --md <path>', 'Directly initialize with a markdown file')
+    .option('-s, --scan [path]', 'Scan existing codebase files & structure to generate context')
     .addOption(new commander_1.Option('-l, --llm <provider>', 'Directly specify the LLM provider').choices(llmChoices))
     .action(async (options) => {
     console.log(chalk_1.default.blue('--- ContextOS Initialization ---'));
@@ -119,7 +119,12 @@ program
         }
         const provider = (0, LLMUtils_1.getLLMProvider)(providerName);
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
-        if (options.text) {
+        if (options.scan) {
+            const scanPath = typeof options.scan === 'string' ? options.scan : './';
+            await contextEngine.generateFromCodebase(path.resolve(scanPath));
+            return;
+        }
+        else if (options.text) {
             description = options.text;
         }
         else if (options.md) {
@@ -132,6 +137,7 @@ program
                     name: 'initMethod',
                     message: 'How would you like to build the project context?',
                     choices: [
+                        { name: 'Scan existing codebase (auto-detect stack & architecture)', value: 'scan' },
                         { name: 'Enter text description', value: 'text' },
                         { name: 'Load from a Markdown file', value: 'file' },
                         { name: 'Analyze existing project .md files', value: 'folder' }
@@ -139,7 +145,20 @@ program
                 }
             ]);
             method = initMethod;
-            if (method === 'text') {
+            if (method === 'scan') {
+                const { scanPath } = await inquirer_1.default.prompt([
+                    {
+                        type: 'input',
+                        name: 'scanPath',
+                        message: 'Enter codebase directory path to scan:',
+                        default: './',
+                        validate: async (input) => (await fs.pathExists(input)) || 'Folder does not exist.'
+                    }
+                ]);
+                await contextEngine.generateFromCodebase(path.resolve(scanPath));
+                return;
+            }
+            else if (method === 'text') {
                 const { text } = await inquirer_1.default.prompt([
                     {
                         type: 'input',
@@ -179,6 +198,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Initialization failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -194,6 +214,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Agent execution failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -207,6 +228,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Clear failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -219,11 +241,9 @@ program
         await fsm.ensureStructure();
         if (action === 'add') {
             if (!content || content.length === 0) {
-                console.log(chalk_1.default.red('Please provide a task description.'));
-                return;
+                throw new Error('Please provide a task description.');
             }
-            const taskDescription = content.join(' ');
-            await fsm.appendTask(taskDescription);
+            await fsm.appendTask(content.join(' '));
             console.log(chalk_1.default.green('[OK] Task added successfully.'));
         }
         else if (action === 'list') {
@@ -237,15 +257,21 @@ program
             }
         }
         else if (action === 'clear') {
-            await fsm.clearTasks();
-            console.log(chalk_1.default.green('[OK] Project tasks cleared successfully.'));
+            const cleared = await fsm.clearTasks();
+            if (cleared) {
+                console.log(chalk_1.default.green('[OK] Generated tasks cleared successfully.'));
+            }
+            else {
+                console.log(chalk_1.default.yellow('No tasks.md file found to clear.'));
+            }
         }
         else {
-            console.log(chalk_1.default.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
+            throw new Error(`Unknown action: ${action}. Use "add", "list" or "clear".`);
         }
     }
     catch (error) {
-        console.error(chalk_1.default.red('Tasks operation failed:'), error.message);
+        console.error(chalk_1.default.red('Task operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -287,6 +313,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Memory operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -300,6 +327,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Memory operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 const dev = program.command('dev').description('Development tools');
@@ -320,6 +348,7 @@ dev
     }
     catch (error) {
         console.error(chalk_1.default.red('Failed to create agent:'), error.message);
+        process.exitCode = 1;
     }
 });
 const test = program.command('test').description('Testing tools');
@@ -334,6 +363,7 @@ test
     }
     catch (error) {
         console.error(chalk_1.default.red('Tests failed or no "test" script found in package.json.'));
+        process.exitCode = 1;
     }
 });
 const doc = program.command('doc').description('Documentation tools');
@@ -351,6 +381,7 @@ doc
     }
     catch (error) {
         console.error(chalk_1.default.red('Documentation generation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program.parse(process.argv);

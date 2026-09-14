@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContextEngine = void 0;
+const CodebaseScanner_1 = require("../utils/CodebaseScanner");
 const fs = __importStar(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
 const chalk_1 = __importDefault(require("chalk"));
@@ -111,6 +112,20 @@ class ContextEngine {
         }
         catch (error) {
             console.error(chalk_1.default.red(`Error reading folder: ${error.message}`));
+        }
+    }
+    /**
+     * Generates context by scanning an existing codebase (structure, config files, source samples).
+     */
+    async generateFromCodebase(dirPath) {
+        console.log(chalk_1.default.blue(`Scanning codebase at ${dirPath}...`));
+        try {
+            const scanner = new CodebaseScanner_1.CodebaseScanner(this.fsm);
+            const overview = await scanner.scanCodebase(dirPath);
+            await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`);
+        }
+        catch (error) {
+            console.error(chalk_1.default.red(`Error scanning codebase: ${error.message}`));
         }
     }
     /**

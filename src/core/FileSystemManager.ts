@@ -125,15 +125,6 @@ export class FileSystemManager {
   }
 
   /**
-   * Clears all tasks in the tasks directory.
-   */
-  async clearTasks(): Promise<void> {
-    if (await fs.pathExists(this.tasksDir)) {
-      await fs.emptyDir(this.tasksDir);
-    }
-  }
-
-  /**
    * Clears all memory records in the memory directory.
    */
   async clearMemory(): Promise<void> {
