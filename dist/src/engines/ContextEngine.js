@@ -215,9 +215,19 @@ If there are contradictions or new details in memory that affect ${fileName}, up
         if (!trimmed) {
             return '';
         }
-        const fenced = trimmed.match(/^```(?:markdown|md)?\s*([\s\S]*?)```$/i);
-        if (fenced) {
-            return fenced[1].trim();
+        if (trimmed.startsWith('```')) {
+            const firstLineEnd = trimmed.indexOf('\n');
+            if (firstLineEnd !== -1) {
+                const firstLine = trimmed.slice(0, firstLineEnd).trim();
+                if (/^```(?:markdown|md)?$/i.test(firstLine)) {
+                    if (trimmed.endsWith('```')) {
+                        return trimmed.slice(firstLineEnd + 1, trimmed.length - 3).trim();
+                    }
+                    else {
+                        return trimmed.slice(firstLineEnd + 1).trim();
+                    }
+                }
+            }
         }
         if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
             return '';

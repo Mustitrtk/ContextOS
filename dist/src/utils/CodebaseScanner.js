@@ -97,6 +97,9 @@ class CodebaseScanner {
                 continue;
             }
             const indent = '  '.repeat(currentDepth);
+            if (entry.isSymbolicLink()) {
+                continue;
+            }
             if (entry.isDirectory()) {
                 lines.push(`${indent}📁 ${entry.name}/`);
                 const subTree = await this.buildDirectoryTree(fullPath, rootDir, currentDepth + 1);
@@ -157,7 +160,7 @@ class CodebaseScanner {
             '.ts', '.js', '.jsx', '.tsx', '.py', '.go', '.rs', '.java', '.c', '.cpp', '.h', '.cs', '.php', '.rb', '.kt', '.swift'
         ]);
         const fileList = [];
-        await this.collectSourceFiles(rootDir, rootDir, fileList, validExtensions);
+        await this.collectSourceFiles(rootDir, rootDir, fileList, validExtensions, 0);
         const samples = [];
         const count = Math.min(fileList.length, this.maxTotalSampleFiles);
         for (let i = 0; i < count; i++) {
@@ -176,13 +179,16 @@ class CodebaseScanner {
         }
         return samples.join('\n\n');
     }
-    async collectSourceFiles(dirPath, rootDir, fileList, validExtensions) {
-        if (fileList.length >= this.maxTotalSampleFiles * 2) {
+    async collectSourceFiles(dirPath, rootDir, fileList, validExtensions, currentDepth = 0) {
+        if (fileList.length >= this.maxTotalSampleFiles * 2 || currentDepth > this.maxDepth) {
             return;
         }
         const entries = await fs.readdir(dirPath, { withFileTypes: true });
         for (const entry of entries) {
             const fullPath = path.join(dirPath, entry.name);
+            if (entry.isSymbolicLink()) {
+                continue;
+            }
             if (entry.name === '.git' ||
                 entry.name === 'node_modules' ||
                 entry.name === 'dist' ||
@@ -195,7 +201,7 @@ class CodebaseScanner {
                 continue;
             }
             if (entry.isDirectory()) {
-                await this.collectSourceFiles(fullPath, rootDir, fileList, validExtensions);
+                await this.collectSourceFiles(fullPath, rootDir, fileList, validExtensions, currentDepth + 1);
             }
             else if (entry.isFile()) {
                 const ext = path.extname(entry.name).toLowerCase();

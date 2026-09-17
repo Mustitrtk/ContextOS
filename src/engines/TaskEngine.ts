@@ -486,11 +486,12 @@ Return the final markdown list.`;
   }
 
   private isActionableTask(description: string): boolean {
-    if (description.length < 12 || description.length > 180) {
+    if (description.length < 8 || description.length > 500) {
       return false;
     }
 
-    if (description.split(/\s+/).length < 3) {
+    const words = description.trim().split(/\s+/);
+    if (words.length < 3) {
       return false;
     }
 
@@ -499,7 +500,11 @@ Return the final markdown list.`;
     }
 
     const normalized = description.toLowerCase();
-    if (!ACTION_VERBS.some((verb) => normalized.startsWith(`${verb} `))) {
+    const normalizedWords = normalized.split(/\s+/);
+    const hasVerb = ACTION_VERBS.some(
+      (verb) => normalized.startsWith(`${verb} `) || normalizedWords.slice(0, 3).includes(verb)
+    );
+    if (!hasVerb) {
       return false;
     }
 

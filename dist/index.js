@@ -60,7 +60,9 @@ async function addMemoryDecision(content, providerName) {
     console.log(chalk_1.default.green('[OK] Memory added successfully.'));
     // Automatically sync context after memory addition (Point B)
     try {
-        const provider = (0, LLMUtils_1.getLLMProvider)(providerName || 'free');
+        const config = await fsm.getConfig();
+        const activeProvider = providerName || config.llmProvider || 'free';
+        const provider = (0, LLMUtils_1.getLLMProvider)(activeProvider);
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
         await contextEngine.syncFromMemory();
     }
@@ -118,6 +120,7 @@ program
             providerName = provider;
         }
         const provider = (0, LLMUtils_1.getLLMProvider)(providerName);
+        await fsm.saveConfig({ llmProvider: providerName });
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
         if (options.scan) {
             const scanPath = typeof options.scan === 'string' ? options.scan : './';
@@ -208,6 +211,9 @@ program
     .action(async (options) => {
     console.log(chalk_1.default.blue('ContextOS Agent starting...'));
     try {
+        if (options.llm) {
+            await fsm.saveConfig({ llmProvider: options.llm });
+        }
         const provider = (0, LLMUtils_1.getLLMProvider)(options.llm);
         const taskEngine = new TaskEngine_1.TaskEngine(provider, fsm);
         await taskEngine.runAgentLoop();

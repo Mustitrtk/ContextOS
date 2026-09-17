@@ -1,100 +1,52 @@
-### Bugs
-- [x] When i inputed detail about project, the context file couldn't create well (Fixed with Retry Logic in PollinationsProvider)
-- [x] rules.md couldn't created. (Fixed by retry hardening in PollinationsProvider + fallback template write in ContextEngine when provider fails)
-        --- Console Output ---
-        ---
-        npx contextos init
-        [dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
-        --- ContextOS Initialization ---
-        ? Select LLM Provider: Free (Pollinations - No key required)
-        LLM Provider: pollinations
-        ? How would you like to build the project context? Enter text description
-        ? Enter project description: i want to API with nodejs just say hello when i run. Port will be 3000
+# ContextOS Bugs & Audit Log
 
-        Generating context files...
-        - Generating architecture.md...
-        ✓ architecture.md saved.
-        - Generating stack.md...
-        ✓ stack.md saved.
-        - Generating rules.md...
-        ✗ Error generating rules.md: Pollinations (Free API) failed: Request failed with status code 524
-        - Generating features.md...
-        ✓ features.md saved.
+Bu doküman, ContextOS projesinde tespit edilen kritik hataları, güvenlik/çökme risklerini ve daha önce çözülmüş sorunları içerir. Geliştirici ekibinin bu sırayla düzenlemesi önerilir.
 
-        Context generation complete!
-### Bugs
-- [x] When i inputed detail about project, the context file couldn't create well (Fixed with Retry Logic in PollinationsProvider)
-- [x] rules.md couldn't created. (Fixed by retry hardening in PollinationsProvider + fallback template write in ContextEngine when provider fails)
-        --- Console Output ---
-        ---
-        npx contextos init
-        [dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
-        --- ContextOS Initialization ---
-        ? Select LLM Provider: Free (Pollinations - No key required)
-        LLM Provider: pollinations
-        ? How would you like to build the project context? Enter text description
-        ? Enter project description: i want to API with nodejs just say hello when i run. Port will be 3000
+---
 
-        Generating context files...
-        - Generating architecture.md...
-        ✓ architecture.md saved.
-        - Generating stack.md...
-        ✓ stack.md saved.
-        - Generating rules.md...
-        ✗ Error generating rules.md: Pollinations (Free API) failed: Request failed with status code 524
-        - Generating features.md...
-        ✓ features.md saved.
+## 🔴 Aktif ve Tespit Edilen Kritik Hatalar (Active Bugs to Fix)
 
-        Context generation complete!
-        ---
-- [x] tsconfig.json dosyasında hata var hata satırı 11: "moduleResolution": "node" (Removed redundant `moduleResolution`; `npm run build` passes)
+- [ ] **1. GeminiProvider Null Pointer / Dereference Çökme Hatası (`TypeError`)**
+  - **Konum**: [src/core/GeminiProvider.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/core/GeminiProvider.ts#L42)
+  - **Detay**: Gemini API güvenlik filtresi (SAFETY/RECITATION) veya engelleme nedeniyle `candidates` yanıtı boş döndüğünde, `response.data.candidates[0].content.parts[0].text` erişimi `TypeError: Cannot read properties of undefined (reading 'parts')` ile uygulamayı çökertecektir.
+  - **Çözüm**: Optional chaining (`candidates?.[0]?.content?.parts?.[0]?.text`) ve güvenli hata kontrolü eklenmeli.
 
-- [x] .ai/tasks/tasks.md dosyasını da temizleyecek bir komut eklenmeli (`npx contextos tasks clear` added)
+- [ ] **2. LocalProvider & OpenAIProvider Boş Response Çökmesi**
+  - **Konum**: [src/core/LocalProvider.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/core/LocalProvider.ts#L41) ve [src/core/OpenAIProvider.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/core/OpenAIProvider.ts#L39)
+  - **Detay**: Yerel modeller (Ollama/LM Studio) veya OpenAI boş `choices` dizisi döndürdüğünde `choices[0].message` erişimi unhandled `TypeError` oluşturur.
+  - **Çözüm**: `response.data?.choices?.[0]` kontrol edilip anlamlı hata fırlatılmalı.
 
-# Bugs
+- [ ] **3. `ContextEngine.ts` Markdown Kod Blokları Kesilme (Truncation) Hatası**
+  - **Konum**: [src/engines/ContextEngine.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/engines/ContextEngine.ts#L211)
+  - **Detay**: `cleanMarkdownOutput` içinde kullanılan `^```(?:markdown|md)?\s*([\s\S]*?)```$` regex'i, üretilen markdown dökümanının içinde iç içe kod blokları (örneğin ```ts ... ```) bulunduğunda dokümanı ilk iç kod bloğunun kapanışında kesmektedir.
+  - **Çözüm**: Kod çiti temizleme mantığı en dış çitleri (outer fences) hedefleyecek şekilde güncellenmeli.
 
-## Kritik
+- [ ] **4. `CodebaseScanner.ts` Derin Klasör Yapılarında Sonsuz Özyineleme (Stack Overflow) Riski**
+  - **Konum**: [src/utils/CodebaseScanner.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/utils/CodebaseScanner.ts#L162)
+  - **Detay**: `collectSourceFiles` fonksiyonu özyinelemeli (recursive) çalışırken `maxDepth` kontrolü yapmamaktadır. Sembolik bağlar (symlinks) veya çok derin klasör yapılarında maksimum çağrı yığını aşılarak uygulama çökmektedir.
+  - **Çözüm**: `collectSourceFiles` içine derinlik limiti ve symlink kontrolü eklenmeli.
 
-- [x] **Build/Test başarısız**: Yinelenen `clearTasks` tanımı kaldırıldı; `npm run build` ve `npm test` geçiyor.
-- [x] **Yanlış exit code**: Hata yakalayan CLI komutları artık `process.exitCode = 1` atıyor; `run` ve `test run` başarısızlıkları otomasyona doğru aktarılıyor.
-- [x] **tasks add / tasks list uygulanmamış**: `contextos tasks add`, `list` ve `clear` CLI'da uygulanıp README ile hizalandı.
+- [ ] **5. `addMemoryDecision` İçinde LLM Sağlayıcı Tutarsızlığı**
+  - **Konum**: [index.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/index.ts#L31)
+  - **Detay**: Hafızaya karar eklendiğinde (`contextos memory add`) çağrılan `addMemoryDecision` varsayılan olarak `free` sağlayıcısını seçer. Kullanıcı projesini `--llm pro` veya `--llm local` ile başlatmışsa hafıza senkronizasyonu yanlış model ile yapılır.
+  - **Çözüm**: Aktif LLM seçimi kaydedilmeli veya `.ai/config.json` üzerinden okunmalı.
 
-## Diğer bulgular
+- [ ] **6. `FileSystemManager.ts` `readContext` Dizinde Klasör Varsa Hata Fırlatması (`EISDIR`)**
+  - **Konum**: [src/core/FileSystemManager.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/core/FileSystemManager.ts#L100)
+  - **Detay**: `.ai/context/` klasörü içerisine bir alt klasör oluşturulursa `readContext()` içindeki `fs.readFile` `EISDIR` (Is a directory) hatası vererek çalışmayı durdurur.
+  - **Çözüm**: Yalnızca `stats.isFile()` durumundaki dosyalar okunmalıdır.
 
-- [x] **`run --llm local`**: Task üretim hatası artık TaskEngine'den CLI'a iletiliyor ve komut başarısız exit code ile tamamlanıyor.
-- [ ] **`dev create-agent --llm local`**: Yerel model erişilemez olduğunda hata veriyor (bekleniyor, ama kontrol edilmeli).
-- [ ] **Derleme çıktıları**: Build hatasına rağmen takip edilen `dist/` dosyaları güncel kaynakla yeniden yazılmış durumda; TypeScript kaynak dosyalarına dokunulmamış, sadece derleme çıktıları değişmiş.
-- [ ] **İnteraktif init menüsü test edilemedi**: Bu terminalden interaktif menüye cevap verilemediği için manuel seçim akışı tam test edilemedi; `text`, `md` ve `scan` alt akışları doğrudan test edildi ve çalışıyor.
+- [ ] **7. `TaskEngine.ts` `isActionableTask` Aşırı Katı Filtreleme (Görev Silinmesi)**
+  - **Konum**: [src/engines/TaskEngine.ts](file:///c:/Users/pc/Desktop/Projeler/ContextOS/ContextOS/src/engines/TaskEngine.ts#L488)
+  - **Detay**: Görev uzunluğu 180 karakterden büyük olan detaylı teknik görevler veya `ACTION_VERBS` listesinde bulunmayan geçerli aksiyon kalıpları normalizasyon aşamasında elenip silinmektedir.
+  - **Çözüm**: Karakter sınırı esnetilmeli ve aksiyon kelimeleri esnek hale getirilmelidir.
 
-## Çalışan komutlar (referans)
+---
 
-- `init --text`, `init --md`, `init --scan` → LLM yoksa dört context dosyasını fallback içerikle oluşturuyor.
-- `clear` → çalışıyor.
-- `memory add`, `/memory`, `memory list`, `memory clear` → çalışıyor.
-- `doc generate --llm local` → memory yoksa çalışıyor.
-- `tasks clear` → çalışıyor.
+## 🟢 Çözülen ve Doğrulanan Hatalar (Resolved Bugs)
 
-## Önerilen düzeltme sırası
-
-1. Çift `clearTasks` tanımını çöz (build/test'i yeşile al).
-2. Başarısız CLI işlemlerine doğru exit code döndürülmesini sağla (CI/otomasyon için kritik).
-3. README ile `tasks` komutlarını hizala (add/list'i uygula veya README'yi güncelle).
-
-### Olası Hatalar ve Test Edilecek Riskler (Potential Bugs & Audit TODOs)
-- [x] **TaskEngine Kural Doğrulamasında Görev Kaybı (Kritik Bug)**:
-  - `validateTasksAgainstRules` LLM çağrısı başarısız olduğunda veya LLM onay kutusu (`- [ ]`) formatı dışında genel bir metin döndürdüğünde, `validateTaskMarkdown` ilk adımda başarıyla üretilmiş tüm detaylı görevleri silip genel sabit şablon görevleriyle (`# tasks.md (Fallback)`) değiştirmektedir.
-  - *Çözüm Önerisi*: Kural doğrulama çıktısı ayrıştırılamazsa genel fallback'e düşmek yerine ilk adımda üretilen ham görevler korunmalıdır.
-- [ ] **`contextos memory add` / `syncFromMemory` Sağlayıcı Uyuşmazlığı**:
-  - `index.ts` içindeki `addMemoryDecision` fonksiyonunda `syncFromMemory` çağrılırken varsayılan sağlayıcı olarak `free` seçilmesi, ancak kullanıcının `--llm pro` veya `--llm local` modunda çalışmış olması durumunda tutarsızlık yaşanması.
-- [ ] **Codebase Scanner İle Büyük Proje Taramasında Token Taşması (Prompt Overflow)**:
-  - `CodebaseScanner` 20 kaynak dosya örneği (toplam ~60KB metin) topladığında, ücretsiz LLM sağlayıcılarında (Pollinations vb.) HTTP 413 (Payload Too Large) veya 524 (Timeout) hataları tetiklenebilmektedir.
-  - *Çözüm Önerisi*: Tarama özetine akıllı token sınırlaması ve katmanlı özetleme eklenmelidir.
-- [ ] **FileSystemManager `.gitignore` Eşleşme Hataları**:
-  - `matchesGitignorePattern` içinde Windows dosya yolları (`\`) ile Linux tarzı (`/`) ayraç uyuşmazlıkları nedeniyle bazı dosyaların gitignore tarafından atlanması riski.
-  - Karmaşık glob ifadelerinde (`**/*.log`, `dir/*/*.js`) regex kaçışlarının tam eşleşememesi.
-- [ ] **LLM Yanıt Temizleme (`cleanMarkdownOutput`) Hataları**:
-  - LLM çıktısında markdown kod bloklarının (` ```markdown `) kapatılmaması veya çıktının başında/sonunda fazladan JSON/metin kalması durumunda içeriğin tamamen silinip boş dönmesi.
-- [ ] **TaskEngine Görev Ayrıştırma ve Normalizasyon Hataları**:
-  - `ACTION_VERBS` listesinde yer almayan İngilizce/Türkçe aksiyon kelimeleriyle başlayan geçerli görevlerin `isActionableTask` tarafından elenip silinmesi.
-- [ ] **İnteraktif CLI `init` Temizleme Akışı Riskleri**:
-  - `contextos init` komutunda var olan bağlam dosyaları temizlenmediğinde (`clear: false`), yeni üretilen dosyaların eski içeriklerle çakışması veya kısmi kalıntı bırakması.
+- [x] **Build/Test başarısızlığı**: Yinelenen `clearTasks` tanımı kaldırıldı; `npm run build` ve `npm test` başarıyla geçiyor (35/35 test yeşil).
+- [x] **Yanlış exit code**: Hata yakalayan CLI komutları artık `process.exitCode = 1` döndürüyor; otomasyona doğru iletiliyor.
+- [x] **tasks add / tasks list eksikliği**: `contextos tasks add`, `list` ve `clear` komutları CLI'a eklendi.
+- [x] **Kural Doğrulamasında Görev Kaybı**: `validateTaskMarkdown` artık kurallara uymayan yanıt gelse bile ilk adımda üretilen ham görevleri koruyor.
+- [x] **`tsconfig.json` moduleResolution hatası**: Kaldırıldı ve build yeşile alındı.

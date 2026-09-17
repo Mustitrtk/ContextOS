@@ -121,11 +121,31 @@ class FileSystemManager {
         for (const file of files) {
             const fullPath = path.join(this.contextDir, file);
             if (file.endsWith('.md') && !(await this.isGitIgnored(fullPath))) {
-                const content = await fs.readFile(fullPath, 'utf8');
-                context[file] = content;
+                const stats = await fs.stat(fullPath);
+                if (stats.isFile()) {
+                    const content = await fs.readFile(fullPath, 'utf8');
+                    context[file] = content;
+                }
             }
         }
         return context;
+    }
+    async getConfig() {
+        const configPath = path.join(this.aiDir, 'config.json');
+        if (!(await fs.pathExists(configPath))) {
+            return {};
+        }
+        try {
+            return await fs.readJson(configPath);
+        }
+        catch {
+            return {};
+        }
+    }
+    async saveConfig(config) {
+        const configPath = path.join(this.aiDir, 'config.json');
+        const existing = await this.getConfig();
+        await fs.writeJson(configPath, { ...existing, ...config }, { spaces: 2 });
     }
     async readMemory(type) {
         const filePath = path.join(this.memoryDir, `${type}.md`);

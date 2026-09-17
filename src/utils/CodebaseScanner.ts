@@ -80,6 +80,10 @@ export class CodebaseScanner {
       }
 
       const indent = '  '.repeat(currentDepth);
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
+
       if (entry.isDirectory()) {
         lines.push(`${indent}📁 ${entry.name}/`);
         const subTree = await this.buildDirectoryTree(fullPath, rootDir, currentDepth + 1);
@@ -145,7 +149,7 @@ export class CodebaseScanner {
     ]);
 
     const fileList: string[] = [];
-    await this.collectSourceFiles(rootDir, rootDir, fileList, validExtensions);
+    await this.collectSourceFiles(rootDir, rootDir, fileList, validExtensions, 0);
 
     const samples: string[] = [];
     const count = Math.min(fileList.length, this.maxTotalSampleFiles);
@@ -171,9 +175,10 @@ export class CodebaseScanner {
     dirPath: string,
     rootDir: string,
     fileList: string[],
-    validExtensions: Set<string>
+    validExtensions: Set<string>,
+    currentDepth: number = 0
   ): Promise<void> {
-    if (fileList.length >= this.maxTotalSampleFiles * 2) {
+    if (fileList.length >= this.maxTotalSampleFiles * 2 || currentDepth > this.maxDepth) {
       return;
     }
 
@@ -181,6 +186,10 @@ export class CodebaseScanner {
 
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
 
       if (
         entry.name === '.git' ||
@@ -198,7 +207,7 @@ export class CodebaseScanner {
       }
 
       if (entry.isDirectory()) {
-        await this.collectSourceFiles(fullPath, rootDir, fileList, validExtensions);
+        await this.collectSourceFiles(fullPath, rootDir, fileList, validExtensions, currentDepth + 1);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
         if (validExtensions.has(ext)) {

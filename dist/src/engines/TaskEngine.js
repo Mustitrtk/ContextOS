@@ -403,17 +403,20 @@ Return the final markdown list.`;
         return `${this.capitalizeSentence(description)} (ref: ${finalRefs.join(', ')})`;
     }
     isActionableTask(description) {
-        if (description.length < 12 || description.length > 180) {
+        if (description.length < 8 || description.length > 500) {
             return false;
         }
-        if (description.split(/\s+/).length < 3) {
+        const words = description.trim().split(/\s+/);
+        if (words.length < 3) {
             return false;
         }
         if (VAGUE_PATTERNS.some((pattern) => pattern.test(description))) {
             return false;
         }
         const normalized = description.toLowerCase();
-        if (!ACTION_VERBS.some((verb) => normalized.startsWith(`${verb} `))) {
+        const normalizedWords = normalized.split(/\s+/);
+        const hasVerb = ACTION_VERBS.some((verb) => normalized.startsWith(`${verb} `) || normalizedWords.slice(0, 3).includes(verb));
+        if (!hasVerb) {
             return false;
         }
         return true;

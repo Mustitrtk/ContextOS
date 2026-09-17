@@ -28,7 +28,9 @@ async function addMemoryDecision(content: string[], providerName?: string): Prom
 
   // Automatically sync context after memory addition (Point B)
   try {
-    const provider = getLLMProvider(providerName || 'free');
+    const config = await fsm.getConfig();
+    const activeProvider = providerName || config.llmProvider || 'free';
+    const provider = getLLMProvider(activeProvider);
     const contextEngine = new ContextEngine(provider, fsm);
     await contextEngine.syncFromMemory();
   } catch (error: any) {
@@ -94,6 +96,7 @@ program
       }
 
       const provider = getLLMProvider(providerName);
+      await fsm.saveConfig({ llmProvider: providerName });
       const contextEngine = new ContextEngine(provider, fsm);
 
       if (options.scan) {
@@ -184,6 +187,9 @@ program
     console.log(chalk.blue('ContextOS Agent starting...'));
 
     try {
+      if (options.llm) {
+        await fsm.saveConfig({ llmProvider: options.llm });
+      }
       const provider = getLLMProvider(options.llm);
       const taskEngine = new TaskEngine(provider, fsm);
       await taskEngine.runAgentLoop();
