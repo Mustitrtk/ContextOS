@@ -81,6 +81,69 @@ export class FileSystemManager {
   }
 
   /**
+   * Reverts the last completed task ([x]) back to uncompleted ([ ]).
+   * Returns the undone task description, or null if no completed task was found.
+   */
+  async undoLastTask(): Promise<string | null> {
+    const content = await this.readTasks();
+    if (!content) {
+      return null;
+    }
+
+    const lines = content.split(/\r?\n/);
+    let lastCompletedIndex = -1;
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim().startsWith('- [x]')) {
+        lastCompletedIndex = i;
+        break;
+      }
+    }
+
+    if (lastCompletedIndex === -1) {
+      return null;
+    }
+
+    const taskLine = lines[lastCompletedIndex];
+    const taskDescription = taskLine.replace(/-\s*\[x\]\s*/i, '').trim();
+
+    lines[lastCompletedIndex] = taskLine.replace('[x]', '[ ]');
+    await this.writeTasks(lines.join('\n'));
+
+    await this.appendMemory('learnings', `Reverted/undone completed task: ${taskDescription}`);
+
+    return taskDescription;
+  }
+
+  /**
+   * Returns task statistics (total, completed, remaining, percentage).
+   */
+  async getTaskStats(): Promise<{ total: number; completed: number; remaining: number; percentage: number }> {
+    const content = await this.readTasks();
+    if (!content) {
+      return { total: 0, completed: 0, remaining: 0, percentage: 0 };
+    }
+
+    const lines = content.split(/\r?\n/);
+    let completed = 0;
+    let remaining = 0;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('- [x]')) {
+        completed++;
+      } else if (trimmed.startsWith('- [ ]')) {
+        remaining++;
+      }
+    }
+
+    const total = completed + remaining;
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { total, completed, remaining, percentage };
+  }
+
+  /**
    * Appends a decision or learning to the memory directory.
    */
   async appendMemory(type: 'decisions' | 'learnings', content: string): Promise<void> {

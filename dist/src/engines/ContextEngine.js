@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContextEngine = void 0;
 const CodebaseScanner_1 = require("../utils/CodebaseScanner");
+const SpinnerUtils_1 = require("../utils/SpinnerUtils");
 const fs = __importStar(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
 const chalk_1 = __importDefault(require("chalk"));
@@ -49,16 +50,22 @@ class ContextEngine {
     /**
      * Generates the project's foundation context files.
      * @param description A project description (text or markdown file content).
+     * @param dryRun If true, previews output without writing to disk.
      */
-    async generateContext(description) {
+    async generateContext(description, dryRun = false) {
         const fileTypes = ['architecture.md', 'stack.md', 'rules.md', 'features.md'];
         const normalizedDescription = description.trim();
         if (!normalizedDescription) {
             throw new Error('Project description cannot be empty.');
         }
-        console.log(chalk_1.default.blue('Generating context files...'));
+        if (dryRun) {
+            console.log(chalk_1.default.yellow('\n--- [DRY-RUN MODE] Previewing Context Generation ---'));
+        }
+        else {
+            console.log(chalk_1.default.blue('Generating context files...'));
+        }
         for (const fileName of fileTypes) {
-            console.log(chalk_1.default.gray(` - Generating ${fileName}...`));
+            SpinnerUtils_1.SpinnerUtils.start(`Generating ${fileName}...`);
             const systemPrompt = this.getSystemPromptForFile(fileName);
             const userPrompt = `Project Description:\n\n${normalizedDescription}`;
             this.logTokenEstimate(`${fileName} prompt`, `${systemPrompt}\n${userPrompt}`);
@@ -69,22 +76,42 @@ class ContextEngine {
                 const finalContent = this.validateContextMarkdown(fileName, cleaned, normalizedDescription)
                     ? cleaned
                     : this.getFallbackContentForFile(fileName, normalizedDescription);
-                await this.fsm.writeContextFile(fileName, finalContent);
-                console.log(chalk_1.default.green(`   [OK] ${fileName} saved.`));
+                if (dryRun) {
+                    SpinnerUtils_1.SpinnerUtils.succeed(`${fileName} generated (Preview only)`);
+                    console.log(chalk_1.default.cyan(`\n=== PREVIEW: .ai/context/${fileName} ===`));
+                    console.log(finalContent);
+                    console.log(chalk_1.default.cyan('========================================\n'));
+                }
+                else {
+                    await this.fsm.writeContextFile(fileName, finalContent);
+                    SpinnerUtils_1.SpinnerUtils.succeed(`${fileName} saved to .ai/context/`);
+                }
             }
             catch (error) {
-                console.error(chalk_1.default.red(`   [ERR] Error generating ${fileName}:`), error.message);
+                SpinnerUtils_1.SpinnerUtils.fail(`Error generating ${fileName}: ${error.message}`);
                 const fallbackContent = this.getFallbackContentForFile(fileName, normalizedDescription);
-                await this.fsm.writeContextFile(fileName, fallbackContent);
-                console.log(chalk_1.default.yellow(`   [WARN] ${fileName} saved with fallback template.`));
+                if (dryRun) {
+                    console.log(chalk_1.default.cyan(`\n=== PREVIEW FALLBACK: .ai/context/${fileName} ===`));
+                    console.log(fallbackContent);
+                    console.log(chalk_1.default.cyan('=================================================\n'));
+                }
+                else {
+                    await this.fsm.writeContextFile(fileName, fallbackContent);
+                    console.log(chalk_1.default.yellow(`   [WARN] ${fileName} saved with fallback template.`));
+                }
             }
         }
-        console.log(chalk_1.default.blue('\nContext generation complete!'));
+        if (dryRun) {
+            console.log(chalk_1.default.yellow('\n[DRY-RUN COMPLETE] No files were modified on disk.'));
+        }
+        else {
+            console.log(chalk_1.default.blue('\nContext generation complete!'));
+        }
     }
     /**
      * Generates context by reading all .md files in a directory.
      */
-    async generateFromFolder(dirPath) {
+    async generateFromFolder(dirPath, dryRun = false) {
         console.log(chalk_1.default.blue(`Reading all .md files in ${dirPath}...`));
         try {
             const allFiles = await this.walkDirectory(dirPath);
@@ -108,7 +135,7 @@ class ContextEngine {
             if (chunks.length === 0) {
                 throw new Error(`No valid markdown files found in ${dirPath}`);
             }
-            await this.generateContext(chunks.join('\n\n'));
+            await this.generateContext(chunks.join('\n\n'), dryRun);
         }
         catch (error) {
             console.error(chalk_1.default.red(`Error reading folder: ${error.message}`));
@@ -117,15 +144,16 @@ class ContextEngine {
     /**
      * Generates context by scanning an existing codebase (structure, config files, source samples).
      */
-    async generateFromCodebase(dirPath) {
-        console.log(chalk_1.default.blue(`Scanning codebase at ${dirPath}...`));
+    async generateFromCodebase(dirPath, dryRun = false) {
+        SpinnerUtils_1.SpinnerUtils.start(`Scanning codebase at ${dirPath}...`);
         try {
             const scanner = new CodebaseScanner_1.CodebaseScanner(this.fsm);
             const overview = await scanner.scanCodebase(dirPath);
-            await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`);
+            SpinnerUtils_1.SpinnerUtils.succeed(`Codebase scan complete.`);
+            await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`, dryRun);
         }
         catch (error) {
-            console.error(chalk_1.default.red(`Error scanning codebase: ${error.message}`));
+            SpinnerUtils_1.SpinnerUtils.fail(`Error scanning codebase: ${error.message}`);
         }
     }
     /**

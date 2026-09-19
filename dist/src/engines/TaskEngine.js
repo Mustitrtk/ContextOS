@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskEngine = void 0;
+const SpinnerUtils_1 = require("../utils/SpinnerUtils");
 const chalk_1 = __importDefault(require("chalk"));
 const ACTION_VERBS = [
     // English
@@ -153,7 +154,7 @@ class TaskEngine {
     /**
      * Main execution loop: picks a task, executes it (simulated for now), and updates status.
      */
-    async runAgentLoop() {
+    async runAgentLoop(dryRun = false) {
         const tasksMarkdown = await this.fsm.readTasks();
         if (!tasksMarkdown) {
             console.log(chalk_1.default.yellow('No tasks.md found. Generating initial tasks...'));
@@ -177,9 +178,14 @@ class TaskEngine {
         const decisions = await this.fsm.readMemory('decisions');
         const learnings = await this.fsm.readMemory('learnings');
         const relevantMemory = this.buildRelevantMemoryContext(taskDescription, referencedFiles, decisions, learnings);
-        console.log(chalk_1.default.blue(`\n--- Next Task: ${taskDescription} ---`));
+        if (dryRun) {
+            console.log(chalk_1.default.yellow(`\n--- [DRY-RUN MODE] Next Task: ${taskDescription} ---`));
+        }
+        else {
+            console.log(chalk_1.default.blue(`\n--- Next Task: ${taskDescription} ---`));
+        }
         console.log(chalk_1.default.gray(` - Context refs: ${referencedFiles.join(', ') || 'inferred from available context'}`));
-        console.log(chalk_1.default.gray(' - Querying memory before execution...'));
+        SpinnerUtils_1.SpinnerUtils.start('Querying memory and analyzing task execution...');
         const systemPrompt = [
             'You are an execution agent.',
             'Context is King: do not invent scope beyond the provided context excerpts.',
@@ -200,8 +206,13 @@ class TaskEngine {
             'If this is a conceptual task, provide the final decision and why it follows the referenced context.'
         ].join('\n');
         const response = await this.llm.generateCompletion(systemPrompt, userPrompt);
+        SpinnerUtils_1.SpinnerUtils.succeed('Execution proposal generated.');
         console.log(chalk_1.default.cyan('\nExecution Proposal:'));
         console.log(response.content);
+        if (dryRun) {
+            console.log(chalk_1.default.yellow('\n[DRY-RUN COMPLETE] Task status was not updated in tasks.md (Preview only).'));
+            return;
+        }
         console.log(chalk_1.default.gray('\n - Executing task and updating memory...'));
         lines[taskIndex] = taskLine.replace('[ ]', '[x]');
         await this.fsm.writeTasks(lines.join('\n'));

@@ -1,5 +1,6 @@
 import { ILLMProvider } from '../core/types';
 import { FileSystemManager } from '../core/FileSystemManager';
+import { SpinnerUtils } from '../utils/SpinnerUtils';
 import chalk from 'chalk';
 
 const ACTION_VERBS = [
@@ -169,7 +170,7 @@ export class TaskEngine {
   /**
    * Main execution loop: picks a task, executes it (simulated for now), and updates status.
    */
-  async runAgentLoop(): Promise<void> {
+  async runAgentLoop(dryRun: boolean = false): Promise<void> {
     const tasksMarkdown = await this.fsm.readTasks();
     if (!tasksMarkdown) {
       console.log(chalk.yellow('No tasks.md found. Generating initial tasks...'));
@@ -199,9 +200,14 @@ export class TaskEngine {
     const learnings = await this.fsm.readMemory('learnings');
     const relevantMemory = this.buildRelevantMemoryContext(taskDescription, referencedFiles, decisions, learnings);
 
-    console.log(chalk.blue(`\n--- Next Task: ${taskDescription} ---`));
+    if (dryRun) {
+      console.log(chalk.yellow(`\n--- [DRY-RUN MODE] Next Task: ${taskDescription} ---`));
+    } else {
+      console.log(chalk.blue(`\n--- Next Task: ${taskDescription} ---`));
+    }
     console.log(chalk.gray(` - Context refs: ${referencedFiles.join(', ') || 'inferred from available context'}`));
-    console.log(chalk.gray(' - Querying memory before execution...'));
+
+    SpinnerUtils.start('Querying memory and analyzing task execution...');
 
     const systemPrompt = [
       'You are an execution agent.',
@@ -225,9 +231,15 @@ export class TaskEngine {
     ].join('\n');
 
     const response = await this.llm.generateCompletion(systemPrompt, userPrompt);
+    SpinnerUtils.succeed('Execution proposal generated.');
 
     console.log(chalk.cyan('\nExecution Proposal:'));
     console.log(response.content);
+
+    if (dryRun) {
+      console.log(chalk.yellow('\n[DRY-RUN COMPLETE] Task status was not updated in tasks.md (Preview only).'));
+      return;
+    }
 
     console.log(chalk.gray('\n - Executing task and updating memory...'));
 

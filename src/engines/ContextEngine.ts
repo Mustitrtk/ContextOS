@@ -1,6 +1,7 @@
 import { ILLMProvider } from '../core/types';
 import { FileSystemManager } from '../core/FileSystemManager';
 import { CodebaseScanner } from '../utils/CodebaseScanner';
+import { SpinnerUtils } from '../utils/SpinnerUtils';
 import * as fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
@@ -17,8 +18,9 @@ export class ContextEngine {
   /**
    * Generates the project's foundation context files.
    * @param description A project description (text or markdown file content).
+   * @param dryRun If true, previews output without writing to disk.
    */
-  async generateContext(description: string): Promise<void> {
+  async generateContext(description: string, dryRun: boolean = false): Promise<void> {
     const fileTypes = ['architecture.md', 'stack.md', 'rules.md', 'features.md'];
     const normalizedDescription = description.trim();
 
@@ -26,10 +28,14 @@ export class ContextEngine {
       throw new Error('Project description cannot be empty.');
     }
 
-    console.log(chalk.blue('Generating context files...'));
+    if (dryRun) {
+      console.log(chalk.yellow('\n--- [DRY-RUN MODE] Previewing Context Generation ---'));
+    } else {
+      console.log(chalk.blue('Generating context files...'));
+    }
 
     for (const fileName of fileTypes) {
-      console.log(chalk.gray(` - Generating ${fileName}...`));
+      SpinnerUtils.start(`Generating ${fileName}...`);
 
       const systemPrompt = this.getSystemPromptForFile(fileName);
       const userPrompt = `Project Description:\n\n${normalizedDescription}`;
@@ -44,23 +50,41 @@ export class ContextEngine {
           ? cleaned
           : this.getFallbackContentForFile(fileName, normalizedDescription);
 
-        await this.fsm.writeContextFile(fileName, finalContent);
-        console.log(chalk.green(`   [OK] ${fileName} saved.`));
+        if (dryRun) {
+          SpinnerUtils.succeed(`${fileName} generated (Preview only)`);
+          console.log(chalk.cyan(`\n=== PREVIEW: .ai/context/${fileName} ===`));
+          console.log(finalContent);
+          console.log(chalk.cyan('========================================\n'));
+        } else {
+          await this.fsm.writeContextFile(fileName, finalContent);
+          SpinnerUtils.succeed(`${fileName} saved to .ai/context/`);
+        }
       } catch (error: any) {
-        console.error(chalk.red(`   [ERR] Error generating ${fileName}:`), error.message);
+        SpinnerUtils.fail(`Error generating ${fileName}: ${error.message}`);
         const fallbackContent = this.getFallbackContentForFile(fileName, normalizedDescription);
-        await this.fsm.writeContextFile(fileName, fallbackContent);
-        console.log(chalk.yellow(`   [WARN] ${fileName} saved with fallback template.`));
+
+        if (dryRun) {
+          console.log(chalk.cyan(`\n=== PREVIEW FALLBACK: .ai/context/${fileName} ===`));
+          console.log(fallbackContent);
+          console.log(chalk.cyan('=================================================\n'));
+        } else {
+          await this.fsm.writeContextFile(fileName, fallbackContent);
+          console.log(chalk.yellow(`   [WARN] ${fileName} saved with fallback template.`));
+        }
       }
     }
 
-    console.log(chalk.blue('\nContext generation complete!'));
+    if (dryRun) {
+      console.log(chalk.yellow('\n[DRY-RUN COMPLETE] No files were modified on disk.'));
+    } else {
+      console.log(chalk.blue('\nContext generation complete!'));
+    }
   }
 
   /**
    * Generates context by reading all .md files in a directory.
    */
-  async generateFromFolder(dirPath: string): Promise<void> {
+  async generateFromFolder(dirPath: string, dryRun: boolean = false): Promise<void> {
     console.log(chalk.blue(`Reading all .md files in ${dirPath}...`));
     try {
       const allFiles = await this.walkDirectory(dirPath);
@@ -90,7 +114,7 @@ export class ContextEngine {
         throw new Error(`No valid markdown files found in ${dirPath}`);
       }
 
-      await this.generateContext(chunks.join('\n\n'));
+      await this.generateContext(chunks.join('\n\n'), dryRun);
     } catch (error: any) {
       console.error(chalk.red(`Error reading folder: ${error.message}`));
     }
@@ -99,14 +123,15 @@ export class ContextEngine {
   /**
    * Generates context by scanning an existing codebase (structure, config files, source samples).
    */
-  async generateFromCodebase(dirPath: string): Promise<void> {
-    console.log(chalk.blue(`Scanning codebase at ${dirPath}...`));
+  async generateFromCodebase(dirPath: string, dryRun: boolean = false): Promise<void> {
+    SpinnerUtils.start(`Scanning codebase at ${dirPath}...`);
     try {
       const scanner = new CodebaseScanner(this.fsm);
       const overview = await scanner.scanCodebase(dirPath);
-      await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`);
+      SpinnerUtils.succeed(`Codebase scan complete.`);
+      await this.generateContext(`PROJECT CODEBASE ANALYSIS:\n\n${overview}`, dryRun);
     } catch (error: any) {
-      console.error(chalk.red(`Error scanning codebase: ${error.message}`));
+      SpinnerUtils.fail(`Error scanning codebase: ${error.message}`);
     }
   }
 

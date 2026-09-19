@@ -172,6 +172,27 @@ async function runIntegrationTests(): Promise<boolean> {
     const folderContextFiles = await fsm.readContext();
     assert(Object.keys(folderContextFiles).length === 4, 'ContextEngine: Generates context from markdown folder');
 
+    // ----------------------------------------------------
+    // Test 7: ContextEngine & TaskEngine dryRun mode
+    // ----------------------------------------------------
+    const dryRunEnvDir = path.join(process.cwd(), 'temp_dryrun_test_env');
+    await fs.remove(dryRunEnvDir);
+    const fsmDry = new FileSystemManager(dryRunEnvDir);
+    await fsmDry.ensureStructure();
+    const dryContextEngine = new ContextEngine(mockLLM, fsmDry);
+    await dryContextEngine.generateContext('Dry run test project', true);
+    const dryContextFiles = await fsmDry.readContext();
+    assert(Object.keys(dryContextFiles).length === 0, 'ContextEngine DryRun: Previews context without modifying files on disk');
+
+    await fsmDry.writeContextFile('architecture.md', '# Architecture');
+    await fsmDry.writeTasks('# Tasks\n- [ ] Dry task');
+    const dryTaskEngine = new TaskEngine(mockLLM, fsmDry);
+    await dryTaskEngine.runAgentLoop(true);
+    const dryTasksPost = await fsmDry.readTasks();
+    assert(dryTasksPost.includes('- [ ] Dry task') && !dryTasksPost.includes('- [x] Dry task'), 'TaskEngine DryRun: Previews task execution without updating task status');
+
+    await fs.remove(dryRunEnvDir);
+
   } catch (err: any) {
     console.error(` ❌ CRITICAL UNHANDLED ERROR IN INTEGRATION TESTS: ${err.message}\n${err.stack}`);
     failed++;
