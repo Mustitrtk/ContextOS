@@ -31,8 +31,11 @@ class LocalProvider {
                     'Authorization': `Bearer ${this.apiKey}`,
                 },
             });
-            const choice = response.data.choices[0];
-            const usage = response.data.usage;
+            const choice = response.data?.choices?.[0];
+            if (!choice || !choice.message || choice.message.content === undefined) {
+                throw new Error('Local LLM API returned an empty or malformed response.');
+            }
+            const usage = response.data?.usage;
             return {
                 content: choice.message.content.trim(),
                 usage: usage ? {

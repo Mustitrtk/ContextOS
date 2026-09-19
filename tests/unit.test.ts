@@ -91,11 +91,24 @@ async function runUnitTests(): Promise<boolean> {
     assert(cleared === true && (await fsm.readTasks()) === '', 'FileSystemManager: Clears tasks.md');
 
     // ----------------------------------------------------
-    // Test 3: FileSystemManager Memory Management
+    // Test 3: FileSystemManager Memory Management & Undo & Stats
     // ----------------------------------------------------
     await fsm.appendMemory('decisions', 'Decision: Chose PostgreSQL for DB');
     const memoryContent = await fsm.readMemory('decisions');
     assert(memoryContent.includes('Chose PostgreSQL for DB'), 'FileSystemManager: Appends and reads memory decisions');
+
+    await fsm.writeTasks('# Tasks\n- [ ] Task 1\n- [x] Task 2\n- [ ] Task 3');
+    const statsBeforeUndo = await fsm.getTaskStats();
+    assert(statsBeforeUndo.total === 3 && statsBeforeUndo.completed === 1 && statsBeforeUndo.remaining === 2 && statsBeforeUndo.percentage === 33, 'FileSystemManager: Calculates correct task statistics');
+
+    const undoneTask = await fsm.undoLastTask();
+    assert(undoneTask === 'Task 2', 'FileSystemManager: Reverts last completed task [x] -> [ ]');
+    const statsAfterUndo = await fsm.getTaskStats();
+    assert(statsAfterUndo.completed === 0 && statsAfterUndo.remaining === 3, 'FileSystemManager: Task stats updated after undo');
+
+    await fsm.saveConfig({ llmProvider: 'pro' });
+    const savedConfig = await fsm.getConfig();
+    assert(savedConfig.llmProvider === 'pro', 'FileSystemManager: Saves and reads project configuration');
 
     // ----------------------------------------------------
     // Test 4: FileSystemManager GitIgnore Filter

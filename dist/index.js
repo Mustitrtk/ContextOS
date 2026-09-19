@@ -53,15 +53,16 @@ const fsm = new FileSystemManager_1.FileSystemManager();
 const llmChoices = ['free', 'pro', 'local', 'openai', 'gemini', 'anthropic', 'pollinations'];
 async function addMemoryDecision(content, providerName) {
     if (!content || content.length === 0) {
-        console.log(chalk_1.default.red('Please provide content to add to memory.'));
-        return;
+        throw new Error('Please provide content to add to memory.');
     }
     const text = content.join(' ');
     await fsm.appendMemory('decisions', text);
     console.log(chalk_1.default.green('[OK] Memory added successfully.'));
     // Automatically sync context after memory addition (Point B)
     try {
-        const provider = (0, LLMUtils_1.getLLMProvider)(providerName || 'free');
+        const config = await fsm.getConfig();
+        const activeProvider = providerName || config.llmProvider || 'free';
+        const provider = (0, LLMUtils_1.getLLMProvider)(activeProvider);
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
         await contextEngine.syncFromMemory();
     }
@@ -72,23 +73,26 @@ async function addMemoryDecision(content, providerName) {
 program
     .name('contextos')
     .description('AI Project Brain - Context Engineering CLI')
-    .version('0.1.0');
+    .version('0.1.1');
 program
     .command('init')
     .description('Initialize project context (Interactive)')
     .option('-t, --text <description>', 'Directly initialize with a text description')
     .option('-m, --md <path>', 'Directly initialize with a markdown file')
+    .option('-s, --scan [path]', 'Scan existing codebase files & structure to generate context')
+    .option('-d, --dry-run', 'Preview generated context files without writing to disk')
     .addOption(new commander_1.Option('-l, --llm <provider>', 'Directly specify the LLM provider').choices(llmChoices))
     .action(async (options) => {
     console.log(chalk_1.default.blue('--- ContextOS Initialization ---'));
     try {
         await fsm.ensureStructure();
-        let providerName = options.llm;
+        const config = await fsm.getConfig();
+        let providerName = options.llm || config.llmProvider;
         let method = '';
         let description = '';
         const contextDir = path.join(process.cwd(), '.ai', 'context');
         const files = await fs.readdir(contextDir);
-        if (files.length > 0) {
+        if (files.length > 0 && !options.dryRun) {
             const { clear } = await inquirer_1.default.prompt([
                 {
                     type: 'confirm',
@@ -118,8 +122,14 @@ program
             providerName = provider;
         }
         const provider = (0, LLMUtils_1.getLLMProvider)(providerName);
+        await fsm.saveConfig({ llmProvider: providerName });
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
-        if (options.text) {
+        if (options.scan) {
+            const scanPath = typeof options.scan === 'string' ? options.scan : './';
+            await contextEngine.generateFromCodebase(path.resolve(scanPath), options.dryRun);
+            return;
+        }
+        else if (options.text) {
             description = options.text;
         }
         else if (options.md) {
@@ -132,6 +142,7 @@ program
                     name: 'initMethod',
                     message: 'How would you like to build the project context?',
                     choices: [
+                        { name: 'Scan existing codebase (auto-detect stack & architecture)', value: 'scan' },
                         { name: 'Enter text description', value: 'text' },
                         { name: 'Load from a Markdown file', value: 'file' },
                         { name: 'Analyze existing project .md files', value: 'folder' }
@@ -139,7 +150,20 @@ program
                 }
             ]);
             method = initMethod;
-            if (method === 'text') {
+            if (method === 'scan') {
+                const { scanPath } = await inquirer_1.default.prompt([
+                    {
+                        type: 'input',
+                        name: 'scanPath',
+                        message: 'Enter codebase directory path to scan:',
+                        default: './',
+                        validate: async (input) => (await fs.pathExists(input)) || 'Folder does not exist.'
+                    }
+                ]);
+                await contextEngine.generateFromCodebase(path.resolve(scanPath), options.dryRun);
+                return;
+            }
+            else if (method === 'text') {
                 const { text } = await inquirer_1.default.prompt([
                     {
                         type: 'input',
@@ -171,29 +195,131 @@ program
                         validate: async (input) => (await fs.pathExists(input)) || 'Folder does not exist.'
                     }
                 ]);
-                await contextEngine.generateFromFolder(path.resolve(folderPath));
+                await contextEngine.generateFromFolder(path.resolve(folderPath), options.dryRun);
                 return;
             }
         }
-        await contextEngine.generateContext(description);
+        await contextEngine.generateContext(description, options.dryRun);
     }
     catch (error) {
         console.error(chalk_1.default.red('Initialization failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
     .command('run')
-    .description('Run the Agent Loop (Use --llm free, pro, or local)')
+    .description('Run the Agent Loop')
+    .option('-d, --dry-run', 'Preview next task execution without updating task status')
     .addOption(new commander_1.Option('-l, --llm <provider>', 'LLM provider: free, pro, local, openai, gemini, anthropic, pollinations').choices(llmChoices))
     .action(async (options) => {
     console.log(chalk_1.default.blue('ContextOS Agent starting...'));
     try {
-        const provider = (0, LLMUtils_1.getLLMProvider)(options.llm);
+        const config = await fsm.getConfig();
+        const providerName = options.llm || config.llmProvider || 'free';
+        if (options.llm) {
+            await fsm.saveConfig({ llmProvider: options.llm });
+        }
+        const provider = (0, LLMUtils_1.getLLMProvider)(providerName);
         const taskEngine = new TaskEngine_1.TaskEngine(provider, fsm);
-        await taskEngine.runAgentLoop();
+        await taskEngine.runAgentLoop(options.dryRun);
     }
     catch (error) {
         console.error(chalk_1.default.red('Agent execution failed:'), error.message);
+        process.exitCode = 1;
+    }
+});
+program
+    .command('status')
+    .description('Display project status, context overview, and task completion dashboard')
+    .action(async () => {
+    try {
+        await fsm.ensureStructure();
+        const config = await fsm.getConfig();
+        const contextFiles = await fsm.readContext();
+        const taskStats = await fsm.getTaskStats();
+        const decisions = await fsm.readMemory('decisions');
+        const learnings = await fsm.readMemory('learnings');
+        console.log(chalk_1.default.blue('\n========================================'));
+        console.log(chalk_1.default.bold.cyan(' 🧠 ContextOS Dashboard & Status'));
+        console.log(chalk_1.default.blue('========================================\n'));
+        console.log(chalk_1.default.bold('⚙️ Configured LLM Provider:'), chalk_1.default.yellow(config.llmProvider || 'free (default)'));
+        console.log(chalk_1.default.bold('\n📄 Context Files (.ai/context/):'));
+        const fileKeys = Object.keys(contextFiles);
+        if (fileKeys.length === 0) {
+            console.log(chalk_1.default.gray('  (No context files generated. Run "contextos init" to start)'));
+        }
+        else {
+            for (const file of fileKeys) {
+                const bytes = Buffer.byteLength(contextFiles[file], 'utf8');
+                console.log(`  - ${chalk_1.default.green(file)} (${bytes} bytes)`);
+            }
+        }
+        console.log(chalk_1.default.bold('\n📋 Task Progress (.ai/tasks/tasks.md):'));
+        if (taskStats.total === 0) {
+            console.log(chalk_1.default.gray('  (No tasks found)'));
+        }
+        else {
+            const barWidth = 20;
+            const filled = Math.round((taskStats.percentage / 100) * barWidth);
+            const empty = barWidth - filled;
+            const progressBar = chalk_1.default.green('█'.repeat(filled)) + chalk_1.default.gray('░'.repeat(empty));
+            console.log(`  Progress: [${progressBar}] ${chalk_1.default.bold(`${taskStats.percentage}%`)}`);
+            console.log(`  Completed: ${chalk_1.default.green(taskStats.completed)} / Total: ${taskStats.total} (${chalk_1.default.yellow(taskStats.remaining)} remaining)`);
+        }
+        console.log(chalk_1.default.bold('\n🧠 Project Memory (.ai/memory/):'));
+        const decisionCount = decisions ? decisions.split(/\n## /).length - 1 : 0;
+        const learningCount = learnings ? learnings.split(/\n## /).length - 1 : 0;
+        console.log(`  - Decisions logged: ${chalk_1.default.cyan(decisionCount)}`);
+        console.log(`  - Learnings logged: ${chalk_1.default.cyan(learningCount)}`);
+        console.log(chalk_1.default.blue('\n========================================\n'));
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Failed to retrieve status:'), error.message);
+        process.exitCode = 1;
+    }
+});
+program
+    .command('config')
+    .description('Manage project configuration (.ai/config.json)')
+    .argument('[action]', 'Action to perform: get, set, or list', 'list')
+    .argument('[key]', 'Config key (e.g., llmProvider)')
+    .argument('[value]', 'Config value')
+    .action(async (action, key, value) => {
+    try {
+        await fsm.ensureStructure();
+        if (action === 'set') {
+            if (!key || !value) {
+                throw new Error('Please provide both key and value. Usage: contextos config set <key> <value>');
+            }
+            await fsm.saveConfig({ [key]: value });
+            console.log(chalk_1.default.green(`[OK] Config updated: ${key} = ${value}`));
+        }
+        else if (action === 'get') {
+            if (!key) {
+                throw new Error('Please provide a key. Usage: contextos config get <key>');
+            }
+            const config = await fsm.getConfig();
+            console.log(chalk_1.default.cyan(`${key}:`), config[key] !== undefined ? config[key] : chalk_1.default.yellow('(not set)'));
+        }
+        else if (action === 'list') {
+            const config = await fsm.getConfig();
+            console.log(chalk_1.default.blue('\n--- Project Configuration (.ai/config.json) ---'));
+            if (Object.keys(config).length === 0) {
+                console.log(chalk_1.default.gray('(empty configuration)'));
+            }
+            else {
+                for (const [k, v] of Object.entries(config)) {
+                    console.log(`  ${chalk_1.default.cyan(k)}: ${v}`);
+                }
+            }
+        }
+        else {
+            throw new Error(`Unknown action: ${action}. Use "set", "get" or "list".`);
+        }
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Config operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -207,23 +333,22 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Clear failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
     .command('tasks')
-    .description('Manage project tasks (add, list, clear)')
-    .argument('<action>', 'Action to perform: add, list or clear')
+    .description('Manage project tasks (add, list, undo, clear)')
+    .argument('<action>', 'Action to perform: add, list, undo or clear')
     .argument('[content...]', 'Task description (for "add" action)')
     .action(async (action, content) => {
     try {
         await fsm.ensureStructure();
         if (action === 'add') {
             if (!content || content.length === 0) {
-                console.log(chalk_1.default.red('Please provide a task description.'));
-                return;
+                throw new Error('Please provide a task description.');
             }
-            const taskDescription = content.join(' ');
-            await fsm.appendTask(taskDescription);
+            await fsm.appendTask(content.join(' '));
             console.log(chalk_1.default.green('[OK] Task added successfully.'));
         }
         else if (action === 'list') {
@@ -236,16 +361,31 @@ program
                 console.log(chalk_1.default.yellow('No tasks found.'));
             }
         }
+        else if (action === 'undo') {
+            const undone = await fsm.undoLastTask();
+            if (undone) {
+                console.log(chalk_1.default.green(`[OK] Task undone and unmarked back to [- ]: "${undone}"`));
+            }
+            else {
+                console.log(chalk_1.default.yellow('No completed tasks [x] found to undo.'));
+            }
+        }
         else if (action === 'clear') {
-            await fsm.clearTasks();
-            console.log(chalk_1.default.green('[OK] Project tasks cleared successfully.'));
+            const cleared = await fsm.clearTasks();
+            if (cleared) {
+                console.log(chalk_1.default.green('[OK] Generated tasks cleared successfully.'));
+            }
+            else {
+                console.log(chalk_1.default.yellow('No tasks.md file found to clear.'));
+            }
         }
         else {
-            console.log(chalk_1.default.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
+            throw new Error(`Unknown action: ${action}. Use "add", "list", "undo" or "clear".`);
         }
     }
     catch (error) {
-        console.error(chalk_1.default.red('Tasks operation failed:'), error.message);
+        console.error(chalk_1.default.red('Task operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -282,11 +422,12 @@ program
             console.log(chalk_1.default.green('[OK] Project memory cleared successfully.'));
         }
         else {
-            console.log(chalk_1.default.red(`Unknown action: ${action}. Use "add", "list" or "clear".`));
+            throw new Error(`Unknown action: ${action}. Use "add", "list" or "clear".`);
         }
     }
     catch (error) {
         console.error(chalk_1.default.red('Memory operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program
@@ -300,6 +441,7 @@ program
     }
     catch (error) {
         console.error(chalk_1.default.red('Memory operation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 const dev = program.command('dev').description('Development tools');
@@ -310,7 +452,8 @@ dev
     .action(async (options) => {
     console.log(chalk_1.default.blue('Creating a new agent...'));
     try {
-        const provider = (0, LLMUtils_1.getLLMProvider)(options.llm || 'free');
+        const config = await fsm.getConfig();
+        const provider = (0, LLMUtils_1.getLLMProvider)(options.llm || config.llmProvider || 'free');
         const contextFiles = await fsm.readContext();
         const systemPrompt = 'You are an agent factory. Based on the project context, define a new specialized agent.';
         const userPrompt = `Project Context:\n${JSON.stringify(contextFiles)}\n\nDefine a new agent in markdown format.`;
@@ -320,6 +463,7 @@ dev
     }
     catch (error) {
         console.error(chalk_1.default.red('Failed to create agent:'), error.message);
+        process.exitCode = 1;
     }
 });
 const test = program.command('test').description('Testing tools');
@@ -334,6 +478,7 @@ test
     }
     catch (error) {
         console.error(chalk_1.default.red('Tests failed or no "test" script found in package.json.'));
+        process.exitCode = 1;
     }
 });
 const doc = program.command('doc').description('Documentation tools');
@@ -344,13 +489,15 @@ doc
     .action(async (options) => {
     console.log(chalk_1.default.blue('Generating/Updating documentation...'));
     try {
-        const provider = (0, LLMUtils_1.getLLMProvider)(options.llm || 'free');
+        const config = await fsm.getConfig();
+        const provider = (0, LLMUtils_1.getLLMProvider)(options.llm || config.llmProvider || 'free');
         const contextEngine = new ContextEngine_1.ContextEngine(provider, fsm);
         await contextEngine.syncFromMemory();
         console.log(chalk_1.default.green('[OK] Documentation updated based on memory.'));
     }
     catch (error) {
         console.error(chalk_1.default.red('Documentation generation failed:'), error.message);
+        process.exitCode = 1;
     }
 });
 program.parse(process.argv);

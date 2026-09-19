@@ -1,23 +1,43 @@
-# ContextOS
+# ContextOS 🧠
 
-ContextOS is an AI-powered project brain and context engineering CLI tool. It automates documentation, task management, and decision tracking for software projects.
+**ContextOS** is an AI-powered project brain and context engineering CLI tool. It automates architecture documentation, task management, decision logging, and multi-file context synchronization for software projects.
 
-## Quick Start
+---
+
+## ✨ Features
+
+- 🏗️ **Automated Context Engineering**: Generates foundational project context (`architecture.md`, `stack.md`, `rules.md`, `features.md`) in `.ai/context/`.
+- 🔍 **Smart Codebase Scanner**: Auto-detects project structure, dependencies, configuration files, and representative source code while respecting `.gitignore`, max depth limits, and symlinks.
+- 📋 **Task Management**: Extracts, normalizes, and tracks actionable units of work in `.ai/tasks/tasks.md` mapped to context references (`ref: architecture.md`).
+- 🧠 **Persistent Memory**: Maintains a timestamped log of project decisions and learnings in `.ai/memory/` and synchronizes context when new decisions are made.
+- ⚙️ **Project Configuration (`.ai/config.json`)**: Remembers active LLM settings so you don't need to specify `--llm` on every command.
+- 🔌 **LLM Agnostic**: Supports **Free** (Pollinations - no key required), **Pro** (OpenAI, Gemini, Anthropic), and **Local** (LM Studio, Ollama, vLLM) providers with fallback chains.
+- 🧪 **Built-in Automated Testing**: Includes a 35+ unit and integration test suite with `MockLLMProvider` (`npm test`).
+
+---
+
+## 🚀 Quick Start
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Build TypeScript
 npm run build
+
+# 3. Initialize project context interactively
 npx contextos init
 ```
 
-## Setup
+---
 
-Create a `.env` file in the root directory:
+## ⚙️ Setup & Configuration
+
+Create a `.env` file in your project root:
 
 ```env
 # --- FREE MODELS (No Key Required) ---
-# Uses Pollinations.ai by default. The default free model is `openai`
-# unless you override it with another Pollinations-supported model name.
+# Uses Pollinations.ai by default. Default free model is `openai`.
 FREE_LLM_MODEL=openai
 
 # --- PRO MODELS (Requires API Key) ---
@@ -31,82 +51,198 @@ LOCAL_LLM_MODEL=local-model
 LOCAL_LLM_KEY=optional_local_api_key
 ```
 
-## Commands
+### 📄 Persistent Config (`.ai/config.json`)
+ContextOS saves your selected LLM provider in `.ai/config.json`:
+```json
+{
+  "llmProvider": "free",
+  "updatedAt": "2026-09-19T17:00:00.000Z"
+}
+```
+
+---
+
+## 📖 Commands Reference
 
 ### 1. Initialize Project (`init`)
-The `init` command is interactive and can build context from:
-- Scanning an existing codebase (auto-detects project structure, stack, config files & code)
-- A direct text description
-- An existing `.md` file
-- A folder of project markdown files
+Interactive wizard to build context from text, markdown files, folders, or codebase scan.
 
 ```bash
+# Interactive mode
+contextos init
 
-npx contextos init
-npx contextos init --scan .
+# Codebase scan (auto-detect stack, architecture & files)
+contextos init --scan .
 
+# Preview generated context without writing to disk
+contextos init --scan . --dry-run
+
+# Direct text or markdown file
+contextos init --text "Building a Node.js REST API with Express"
+contextos init --md ./PRD.md --llm pro
 ```
 
-Direct flags are also supported for automation: `--scan`, `--text`, `--md`, `--llm`.
+**Supported `--llm` values**: `free`, `pro`, `local`, `openai`, `gemini`, `anthropic`, `pollinations`.
 
-### 2. Run Agent (`run`)
-Generates or advances `.ai/tasks/tasks.md` based on project context and memory.
+---
+
+### 2. Run Agent Loop (`run`)
+Generates or executes tasks from `.ai/tasks/tasks.md` based on project context and memory.
 
 ```bash
-
+# Run with default or configured LLM
 contextos run
-# or force a specific mode
-contextos run --llm pro
 
+# Preview next task execution without updating task status
+contextos run --dry-run
+
+# Force a specific provider
+contextos run --llm pro
 ```
 
-Supported `--llm` values: `free`, `pro`, `local`, `openai`, `gemini`, `anthropic`, `pollinations`.
+**Rules Enforced**:
+- **Context is King**: Tasks must map back to files in `.ai/context/`.
+- **Memory First**: Checks `.ai/memory/decisions.md` & `learnings.md` before execution.
+- **Actionable Tasks**: Normalizes verbs (English & Turkish) and maintains phase headers.
 
-Task generation and execution follow these rules:
-- Context is King: tasks must map back to files in `.ai/context/`.
-- Memory First: `run` checks relevant entries in `.ai/memory/decisions.md` and `.ai/memory/learnings.md` before proposing execution.
-- Actionable Tasks Only: vague items are filtered out, phase headers are enforced, and missing context refs are inferred or repaired.
+---
 
-### 3. Clear Context (`clear`)
-Clears generated context files in `.ai/context/`.
+### 3. Dashboard & Status (`status`)
+Display a rich console dashboard showing configured LLM, context files, task progress bar, and memory stats.
+
+```bash
+contextos status
+```
+
+---
+
+### 4. Project Config (`config`)
+Manage project settings saved in `.ai/config.json`.
+
+```bash
+# List configuration
+contextos config list
+
+# Set default LLM provider
+contextos config set llmProvider pro
+
+# Get specific config value
+contextos config get llmProvider
+```
+
+---
+
+### 5. Manage Tasks (`tasks`)
+Manage the actionable task list.
+
+```bash
+# Add a new task
+contextos tasks add "Implement JWT authentication middleware"
+
+# List project tasks
+contextos tasks list
+
+# Revert / Undo last completed task [x] -> [- ]
+contextos tasks undo
+
+# Clear all tasks
+contextos tasks clear
+```
+
+---
+
+### 4. Manage Memory (`memory`)
+Log and inspect persistent decisions and learnings.
+
+```bash
+# Add a project decision (automatically triggers context sync)
+contextos memory add "We decided to use PostgreSQL for relational data."
+
+# Quick injection shortcut
+contextos /memory "Focus on MVP release before optimizing cache."
+
+# List memory logs
+contextos memory list
+
+# Clear memory
+contextos memory clear
+```
+
+---
+
+### 5. Clear Context (`clear`)
+Clears all generated context files in `.ai/context/`.
 
 ```bash
 contextos clear
 ```
 
-### 4. Manage Tasks (`tasks`)
-Manage the actionable project task list.
-- **Add**: `contextos tasks add "Implement user authentication."`
-- **List**: `contextos tasks list`
-- **Clear**: `contextos tasks clear`
-
-### 5. Manage Memory (`memory`)
-Maintain a persistent log of decisions and learnings.
-- **Add**: `contextos memory add "We chose PostgreSQL for scalability."`
-- **List**: `contextos memory list`
-- **Clear**: `contextos memory clear`
-- **Quick Inject**: `contextos /memory "We should ship the MVP first."`
+---
 
 ### 6. Development Tools (`dev`)
-- **Create Agent**: `contextos dev create-agent` - Define a new specialized agent based on context.
+```bash
+# Create a specialized agent based on context
+contextos dev create-agent --llm pro
+```
 
-### 7. Testing Tools (`test`)
-- **Run**: `contextos test run` - Execute project tests.
+---
 
-### 8. Documentation Tools (`doc`)
-- **Generate**: `contextos doc generate` - Update documentation based on memory and context.
+### 7. Documentation Sync (`doc`)
+```bash
+# Synchronize architecture and stack docs with memory logs
+contextos doc generate
+```
 
-When using folder-based initialization, files and folders that match `.gitignore` are skipped automatically.
+---
 
-## LLM Selection Logic
+### 8. Testing Tools (`test`)
+```bash
+# Run unit and integration test suite via CLI
+contextos test run
 
-ContextOS supports three routing modes:
-- Free: no API key required, routed through Pollinations.
-- Pro: prefers Gemini or OpenAI when API keys are available.
-- Local: connects to a self-hosted compatible endpoint such as LM Studio or Ollama.
+# Or directly via npm
+npm test
+```
 
-## 🏗️ Tech Stack
+---
+
+## 📁 Directory Structure (`.ai/`)
+
+```text
+.ai/
+├── config.json          # Persistent CLI & LLM settings
+├── context/
+│   ├── architecture.md  # System layers, data flow, component boundaries
+│   ├── stack.md         # Technology stack & dependencies
+│   ├── rules.md         # Coding standards & execution constraints
+│   └── features.md      # Testable project features by phase
+├── tasks/
+│   └── tasks.md         # Mapped actionable task checklist (- [ ])
+└── memory/
+    ├── decisions.md     # Architectural and product decisions
+    └── learnings.md     # Task execution logs & AI learnings
+```
+
+---
+
+## 🤖 LLM Routing Logic
+
+- **Free Mode**: Uses Pollinations.ai text API (No API Key required, automatic retries with exponential backoff).
+- **Pro Mode**: Routes to Gemini, OpenAI, or Anthropic depending on API keys present in `.env`.
+- **Local Mode**: Connects to self-hosted OpenAI-compatible endpoints (LM Studio, Ollama, vLLM).
+
+---
+
+## 🛠️ Tech Stack
+
 - **Runtime**: Node.js
 - **Language**: TypeScript
 - **CLI Framework**: Commander.js & Inquirer.js
 - **Styling**: Chalk
+- **HTTP Client**: Axios
+
+---
+
+## 📄 License
+
+[MIT](LICENSE)

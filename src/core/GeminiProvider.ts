@@ -39,10 +39,14 @@ export class GeminiProvider implements ILLMProvider {
         }
       );
 
-      const content = response.data.candidates[0].content.parts[0].text;
-      
+      const candidate = response.data?.candidates?.[0];
+      const content = candidate?.content?.parts?.[0]?.text;
+      if (!content) {
+        throw new Error('Gemini API returned an empty response or content was blocked by safety filters.');
+      }
+
       // Gemini API doesn't always provide usage in the same way, but it's often in usageMetadata
-      const usageMetadata = response.data.usageMetadata;
+      const usageMetadata = response.data?.usageMetadata;
 
       return {
         content: content.trim(),

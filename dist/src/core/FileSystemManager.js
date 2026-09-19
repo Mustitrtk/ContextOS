@@ -92,6 +92,68 @@ class FileSystemManager {
         return fs.readFile(filePath, 'utf8');
     }
     /**
+     * Clears the generated task list file while keeping the tasks directory.
+     */
+    async clearTasks() {
+        const filePath = path.join(this.tasksDir, 'tasks.md');
+        if (!(await fs.pathExists(filePath))) {
+            return false;
+        }
+        await fs.remove(filePath);
+        return true;
+    }
+    /**
+     * Reverts the last completed task ([x]) back to uncompleted ([ ]).
+     * Returns the undone task description, or null if no completed task was found.
+     */
+    async undoLastTask() {
+        const content = await this.readTasks();
+        if (!content) {
+            return null;
+        }
+        const lines = content.split(/\r?\n/);
+        let lastCompletedIndex = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].trim().startsWith('- [x]')) {
+                lastCompletedIndex = i;
+                break;
+            }
+        }
+        if (lastCompletedIndex === -1) {
+            return null;
+        }
+        const taskLine = lines[lastCompletedIndex];
+        const taskDescription = taskLine.replace(/-\s*\[x\]\s*/i, '').trim();
+        lines[lastCompletedIndex] = taskLine.replace('[x]', '[ ]');
+        await this.writeTasks(lines.join('\n'));
+        await this.appendMemory('learnings', `Reverted/undone completed task: ${taskDescription}`);
+        return taskDescription;
+    }
+    /**
+     * Returns task statistics (total, completed, remaining, percentage).
+     */
+    async getTaskStats() {
+        const content = await this.readTasks();
+        if (!content) {
+            return { total: 0, completed: 0, remaining: 0, percentage: 0 };
+        }
+        const lines = content.split(/\r?\n/);
+        let completed = 0;
+        let remaining = 0;
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('- [x]')) {
+                completed++;
+            }
+            else if (trimmed.startsWith('- [ ]')) {
+                remaining++;
+            }
+        }
+        const total = completed + remaining;
+        const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+        return { total, completed, remaining, percentage };
+    }
+    /**
      * Appends a decision or learning to the memory directory.
      */
     async appendMemory(type, content) {
@@ -110,11 +172,31 @@ class FileSystemManager {
         for (const file of files) {
             const fullPath = path.join(this.contextDir, file);
             if (file.endsWith('.md') && !(await this.isGitIgnored(fullPath))) {
-                const content = await fs.readFile(fullPath, 'utf8');
-                context[file] = content;
+                const stats = await fs.stat(fullPath);
+                if (stats.isFile()) {
+                    const content = await fs.readFile(fullPath, 'utf8');
+                    context[file] = content;
+                }
             }
         }
         return context;
+    }
+    async getConfig() {
+        const configPath = path.join(this.aiDir, 'config.json');
+        if (!(await fs.pathExists(configPath))) {
+            return {};
+        }
+        try {
+            return await fs.readJson(configPath);
+        }
+        catch {
+            return {};
+        }
+    }
+    async saveConfig(config) {
+        const configPath = path.join(this.aiDir, 'config.json');
+        const existing = await this.getConfig();
+        await fs.writeJson(configPath, { ...existing, ...config }, { spaces: 2 });
     }
     async readMemory(type) {
         const filePath = path.join(this.memoryDir, `${type}.md`);
@@ -129,14 +211,6 @@ class FileSystemManager {
     async clearContext() {
         if (await fs.pathExists(this.contextDir)) {
             await fs.emptyDir(this.contextDir);
-        }
-    }
-    /**
-     * Clears all tasks in the tasks directory.
-     */
-    async clearTasks() {
-        if (await fs.pathExists(this.tasksDir)) {
-            await fs.emptyDir(this.tasksDir);
         }
     }
     /**
@@ -188,12 +262,22 @@ class FileSystemManager {
         if (!normalizedPattern) {
             return false;
         }
+        // Check if this is a basename-only pattern (no slash in pattern)
+        const isBasenamePattern = !normalizedPattern.includes('/');
+        const basename = normalizedRelPath.split('/').pop() || normalizedRelPath;
         if (normalizedPattern.endsWith('/')) {
             const dir = normalizedPattern.slice(0, -1);
             return normalizedRelPath === dir || normalizedRelPath.startsWith(`${dir}/`);
         }
         if (!normalizedPattern.includes('*')) {
-            return normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`);
+            if (normalizedRelPath === normalizedPattern || normalizedRelPath.startsWith(`${normalizedPattern}/`)) {
+                return true;
+            }
+            // For basename patterns without wildcards (e.g. '.env'), also match against basename
+            if (isBasenamePattern && basename === normalizedPattern) {
+                return true;
+            }
+            return false;
         }
         const escaped = normalizedPattern
             .replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -201,7 +285,14 @@ class FileSystemManager {
             .replace(/\*/g, '[^/]*')
             .replace(/§§DOUBLE_STAR§§/g, '.*');
         const regex = new RegExp(`^${escaped}$`);
-        return regex.test(normalizedRelPath);
+        if (regex.test(normalizedRelPath)) {
+            return true;
+        }
+        // For basename-only glob patterns (e.g. '*.log'), also test against just the basename
+        if (isBasenamePattern && regex.test(basename)) {
+            return true;
+        }
+        return false;
     }
     getAiDir() {
         return this.aiDir;

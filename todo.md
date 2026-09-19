@@ -66,22 +66,21 @@
 ## Phase 2: Entegrasyon, Test Otomasyonu ve Geliştirme Önerileri (QA & Improvements)
 
 ### Test Infrastructure & Automation
-- [ ] **Automated Test Suite**: Jest veya Vitest entegrasyonu kurulup `src/` altındaki tüm birimlerin (unit) otomatik testlerinin hazırlanması.
+- [x] **Automated Test Suite & Mock LLM**: Unit ve Entegrasyon test süiti (`tests/unit.test.ts`, `tests/integration.test.ts`) ile `MockLLMProvider` entegrasyonu tamamlandı (`npm test` 35/35 yeşil).
 - [ ] **CI/CD Integration**: GitHub Actions workflow eklenerek her push/PR durumunda `npm run build` ve `npm test` adımlarının otomatik çalıştırılması.
-- [ ] **Mock LLM Provider**: Gerçek API çağrıları yapmadan offline ve hızlı test yapabilmek için `MockLLMProvider` sınıfının test paketine dahil edilmesi.
 
 ### Product Quality & Essential CLI Features (Gereklilik Derecesi Yüksek Özellikler)
-- [ ] **`.ai/config.json` Proje Konfigürasyonu**: Kullanıcının varsayılan LLM sağlayıcısını (free/pro/local) ve projenin genel tercihlerini bir kez `.ai/config.json` dosyasına kaydederek her komutta `--llm` bayrağı girme zorunluluğunu ortadan kaldırmak.
-- [ ] **`contextos status` Durum Özeti Dashboard Komutu**: Projede oluşturulmuş bağlam dosyalarını, toplam/tamamlanan görev sayılarını ve hafıza istatistiklerini konsolda şık bir tablo olarak dökümleyen durum komutu.
-- [ ] **`contextos tasks undo` Görev Geri Alma Komutu**: Yanlışlıkla işaretlenen veya yeniden çalıştırılması gereken son tamamlanmış görevi unmark (`- [ ]`) yapıp hafıza kaydını revize etme.
-- [ ] **Arayüz Yükleme Animasyonları (`ora` spinner)**: LLM istekleri ve dosya taramaları sırasında canlı konsol animasyonları göstererek kullanıcı deneyimini (UX) üst seviyeye çıkarmak.
-- [ ] **Önizleme / Kuru Çalıştırma (`--dry-run`) Modu**: `init` veya `run` komutlarında üretilen içerikleri diske yazmadan önce terminalde inceleme olanağı.
+- [x] **`.ai/config.json` Proje Konfigürasyonu**: Kullanıcının varsayılan LLM sağlayıcısını (free/pro/local) ve genel tercihlerini `.ai/config.json` dosyasına kaydederek otomatik kullanım sağlandı (`contextos config`).
+- [x] **`contextos status` Durum Özeti Dashboard Komutu**: Projede oluşturulmuş bağlam dosyalarını, toplam/tamamlanan görev sayılarını (progress bar) ve hafıza istatistiklerini dökümleyen durum komutu.
+- [x] **`contextos tasks undo` Görev Geri Alma Komutu**: Yanlışlıkla işaretlenen veya yeniden çalıştırılması gereken son tamamlanmış görevi unmark (`- [ ]`) yapıp hafıza kaydını revize etme.
+- [x] **Arayüz Yükleme Animasyonları (`SpinnerUtils`)**: LLM istekleri ve dosya taramaları sırasında canlı TTY konsol animasyonları göstererek kullanıcı deneyimini üst seviyeye çıkarmak.
+- [x] **Önizleme / Kuru Çalıştırma (`--dry-run` / `-d`) Modu**: `init` veya `run` komutlarında üretilen içerikleri diske yazmadan önce terminalde inceleme olanağı.
 
 ### Architectural & Core Engine Improvements
+- [x] **Dinamik Aksiyon Kelimeleri (Dynamic Action Verbs & Multilingual Support)**: `TaskEngine` içerisindeki aksiyon kelimeleri Türkçe ve esnek dil eşleşmesini destekleyecek şekilde genişletildi.
 - [ ] **AgentORCH Entegrasyonu (Multi-Agent Architecture)**: `Project.md` dokümanındaki gibi görevleri "Researcher Agent", "Developer Agent" ve "Supervisor Agent" rolleri arasında paylaştırarak 3 aşamalı denetim döngüsünün kurulması.
 - [ ] **Automated Task Code Execution**: Agent'ın ürettiği kod paketlerini doğrudan uygulamak veya linter/test aracıyla doğrulayıp geri bildirim döngüsüne almak.
 - [ ] **Vektör / Embedding Tabanlı Hafıza (Vector Memory Indexing)**: `.ai/memory/` dizinindeki kararları ve geçmiş öğrenimleri anlamsal (semantic) arama ve embedding ile görevlere bağlamak.
-- [ ] **Dinamik Aksiyon Kelimeleri (Dynamic Action Verbs & Multilingual Support)**: `TaskEngine` içindeki aksiyon kelimelerini Türkçe ve genişletilmiş dil kalıplarını destekleyecek şekilde dinamikleştirmek.
 
 ---
 *Note: Always read `.md` files in `docs/` to synchronize with the latest project architecture and rules.*
